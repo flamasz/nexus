@@ -1,0 +1,66 @@
+<h2>Where should the drag handle live?</h2>
+<p class="subtitle">Each row needs a handle users can grab to reorder. Pick the placement that feels most natural.</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px; background: #f8fafc;">
+      <div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;font-size:11px;color:#64748b;">
+        <span style="color:#cbd5e1;font-size:14px;cursor:grab;padding:0 2px;">⠿</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Standard</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">In Progress</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Item Name</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Category</span>
+        <span style="color:#94a3b8;font-size:10px;">QTY</span>
+        <span style="margin-left:auto;color:#d1d5db;font-size:11px;">×</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Left edge (always visible)</h3>
+      <p>Drag handle sits at the far left of every row, always visible. Makes the affordance obvious and easy to discover.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px; background: #f8fafc;">
+      <div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;font-size:11px;color:#64748b;">
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Standard</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">In Progress</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Item Name</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Category</span>
+        <span style="color:#94a3b8;font-size:10px;">QTY</span>
+        <span style="margin-left:auto;color:#cbd5e1;font-size:14px;cursor:grab;padding:0 2px;">⠿</span>
+        <span style="color:#d1d5db;font-size:11px;">×</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Right edge, next to delete (always visible)</h3>
+      <p>Handle sits at the right next to the delete button. Keeps the left side clean; the right already has action controls.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px; background: #f8fafc; position: relative;">
+      <div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;font-size:11px;color:#64748b;position:relative;">
+        <span style="color:#cbd5e1;font-size:14px;cursor:grab;padding:0 2px;">⠿</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Standard</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">In Progress</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Item Name</span>
+        <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;">Category</span>
+        <span style="color:#94a3b8;font-size:10px;">QTY</span>
+        <span style="margin-left:auto;color:#d1d5db;font-size:11px;">×</span>
+        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(248,250,252,0.85);display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:10px;color:#94a3b8;font-style:italic;">← hover to reveal handle</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Left edge, appears on hover only</h3>
+      <p>Handle is hidden until the user hovers the row. Keeps rows visually clean; slightly less discoverable.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top: 16px;">Click to select, then let me know in the terminal.</p>

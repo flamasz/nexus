@@ -1,0 +1,173 @@
+<h2>Revision 1: Order Items Field Upgrades</h2>
+<p class="subtitle">Current simple dropdowns → Advanced reusable components</p>
+
+<div class="section">
+  <h3>Current State: Simple &lt;select&gt; Dropdowns</h3>
+  <div class="mockup">
+    <div class="mockup-header">OrderItemRow — Current Implementation</div>
+    <div class="mockup-body" style="padding: 16px; background: #f9fafb;">
+      <div style="display: flex; gap: 8px; align-items: center; font-size: 13px;">
+        <!-- Item Name -->
+        <div style="flex: 1;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Item Name</div>
+          <select style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+            <option>Select item...</option>
+            <option>Box Liner</option>
+            <option>Sleeve</option>
+          </select>
+        </div>
+        <!-- Category -->
+        <div style="flex: 1;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Category</div>
+          <select style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+            <option>Select category...</option>
+            <option>Small Box</option>
+            <option>Large Tray</option>
+          </select>
+        </div>
+        <!-- Version -->
+        <div style="flex: 0.6;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Version</div>
+          <select style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+            <option>v1</option>
+            <option>v2</option>
+          </select>
+        </div>
+        <!-- Approval Status -->
+        <div style="flex: 0.8;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Approval Status</div>
+          <select style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+            <option>New</option>
+            <option>In Progress</option>
+            <option>Approved</option>
+            <option>Superceded</option>
+          </select>
+        </div>
+        <!-- QTY -->
+        <div style="flex: 0.4;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">QTY</div>
+          <input type="number" value="100" style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+        </div>
+        <!-- Item Order Status -->
+        <div style="flex: 0.6;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Order Status</div>
+          <select style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+            <option>New</option>
+            <option>Final</option>
+            <option>Cancel</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align: center; font-size: 28px; margin: 24px 0;">⬇️</div>
+
+<div class="section">
+  <h3>Proposed: Upgraded Components (Matching PAMS Packaging Modal)</h3>
+  <div class="mockup">
+    <div class="mockup-header">OrderItemRow — After Revision 1</div>
+    <div class="mockup-body" style="padding: 16px; background: #f9fafb;">
+      <div style="display: flex; gap: 8px; align-items: center; font-size: 13px;">
+        <!-- Item Name - Combobox style -->
+        <div style="flex: 1;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Item Name</div>
+          <div style="width: 100%; padding: 6px 8px; border: 1px solid #3b82f6; border-radius: 6px; background: white; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">Box Liner</span>
+            <span style="margin-left: auto; color: #9ca3af; font-size: 10px;">▼</span>
+          </div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">🔍 Searchable • ➕ Create new</div>
+        </div>
+        <!-- Category - with color badge -->
+        <div style="flex: 1;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Category</div>
+          <div style="width: 100%; padding: 6px 8px; border: 1px solid #3b82f6; border-radius: 6px; background: white; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: #8b5cf6; flex-shrink: 0;"></span>
+            <span style="font-size: 13px; color: #111;">Small Box</span>
+            <span style="color: #9ca3af; font-size: 10px; margin-left: auto;">▼</span>
+          </div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">🔍 Search • 🎨 Colors • ➕ Create • ✏️ Edit</div>
+        </div>
+        <!-- Version - Combobox style -->
+        <div style="flex: 0.6;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Version</div>
+          <div style="width: 100%; padding: 6px 8px; border: 1px solid #3b82f6; border-radius: 6px; background: white; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <span style="font-size: 13px; color: #111;">v2</span>
+            <span style="margin-left: auto; color: #9ca3af; font-size: 10px;">▼</span>
+          </div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">🔍 Search • ➕ Create new</div>
+        </div>
+        <!-- Approval Status - Color pill -->
+        <div style="flex: 0.8;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Approval Status</div>
+          <div style="width: 100%; padding: 6px 10px; border: 1px solid #fde68a; border-radius: 6px; background: #fef3c7; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+            <span style="font-size: 13px; color: #92400e; font-weight: 500;">New</span>
+            <span style="margin-left: auto; color: #b45309; font-size: 10px;">▼</span>
+          </div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">🎨 Color-coded dropdown</div>
+        </div>
+        <!-- QTY - No spinners -->
+        <div style="flex: 0.4;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">QTY</div>
+          <div style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: white; font-size: 13px; color: #111;">
+            100
+          </div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">No ↕ spinners</div>
+        </div>
+        <!-- Item Order Status - Color pill -->
+        <div style="flex: 0.6;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Order Status</div>
+          <div style="width: 100%; padding: 6px 10px; border: 1px solid #fca5a5; border-radius: 6px; background: #fef2f2; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></span>
+            <span style="font-size: 13px; color: #991b1b; font-weight: 500;">New</span>
+            <span style="margin-left: auto; color: #b91c1c; font-size: 10px;">▼</span>
+          </div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">🎨 Color-coded dropdown</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Key Question: Component Reuse Strategy</h3>
+  <p class="subtitle">The packaging section already has advanced components (ItemNameCombobox, CategorySelector, ItemStatusDropdown). How should we approach this?</p>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Adapt Existing Components In-Place</h3>
+        <p>Modify the existing packaging components (ItemNameCombobox, CategorySelector, ItemStatusDropdown) to work in both the packaging form context AND the order item row context. Add props to control compact/inline mode vs modal mode.</p>
+        <div class="pros-cons">
+          <div class="pros"><h4>Pros</h4><ul><li>True single source of truth</li><li>Any fix/improvement applies everywhere</li></ul></div>
+          <div class="cons"><h4>Cons</h4><ul><li>More complex component APIs</li><li>Risk of breaking existing packaging form</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Extract Shared Primitives + Compose</h3>
+        <p>Extract the core search/select/create logic into shared primitives (e.g., SearchableSelect, ColorStatusPill), then have both PackagingForm and OrderItemRow compose from these primitives. Each context builds its own wrapper.</p>
+        <div class="pros-cons">
+          <div class="pros"><h4>Pros</h4><ul><li>Clean separation of concerns</li><li>Each context controls its own layout</li><li>Easier to test primitives in isolation</li></ul></div>
+          <div class="cons"><h4>Cons</h4><ul><li>More files to create</li><li>Some duplication in wrapper logic</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Direct Reuse — Drop Existing Components Into Orders</h3>
+        <p>Use the existing ItemNameCombobox, CategorySelector, and ItemStatusDropdown directly in OrderItemRow with minimal modifications. Add a "compact" or "inline" variant prop where needed for row layout.</p>
+        <div class="pros-cons">
+          <div class="pros"><h4>Pros</h4><ul><li>Fastest to implement</li><li>Guaranteed identical behavior</li><li>Minimal new code</li></ul></div>
+          <div class="cons"><h4>Cons</h4><ul><li>Components may not fit row layout perfectly</li><li>May need style overrides</li></ul></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

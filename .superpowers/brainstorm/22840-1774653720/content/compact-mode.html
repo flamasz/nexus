@@ -1,0 +1,85 @@
+<h2>Compact Mode: How Should Components Look in Rows?</h2>
+<p class="subtitle">The existing components were built for modal forms. Order item rows need a tighter layout.</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Current: Modal/Form Context</div>
+    <div class="mockup-body" style="padding: 16px; background: #f9fafb;">
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 6px;">Item Name <span style="color: #ef4444;">*</span></label>
+        <div style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer;">
+          <span style="background: #dbeafe; color: #1d4ed8; padding: 3px 10px; border-radius: 12px; font-size: 13px; font-weight: 500;">Box Liner</span>
+          <span style="float: right; color: #3b82f6; font-size: 12px; cursor: pointer;">Change</span>
+        </div>
+      </div>
+      <div>
+        <label style="font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 6px;">Category</label>
+        <div style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+          <span style="width: 12px; height: 12px; border-radius: 50%; background: #8b5cf6;"></span>
+          <span style="font-size: 13px;">Small Box</span>
+          <span style="color: #9ca3af; font-size: 11px; margin-left: 4px;">120×80×40mm</span>
+          <span style="margin-left: auto; color: #3b82f6; font-size: 12px;">Change</span>
+        </div>
+        <div style="margin-top: 6px; padding: 8px 10px; background: #f3f4f6; border-radius: 6px; font-size: 11px; color: #6b7280;">
+          📐 120mm × 80mm × 40mm
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Needed: Inline/Row Context</div>
+    <div class="mockup-body" style="padding: 16px; background: #f9fafb;">
+      <p style="font-size: 12px; color: #6b7280; margin-bottom: 12px;">Same functionality, but fits in a table-like row:</p>
+      <div style="display: flex; gap: 8px; align-items: flex-start;">
+        <div style="flex: 1;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #9ca3af; margin-bottom: 3px;">Item Name</div>
+          <div style="padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: white; font-size: 12px; cursor: pointer; display: flex; align-items: center;">
+            <span style="background: #dbeafe; color: #1d4ed8; padding: 1px 6px; border-radius: 8px; font-size: 11px;">Box Liner</span>
+            <span style="margin-left: auto; color: #9ca3af; font-size: 9px;">▼</span>
+          </div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #9ca3af; margin-bottom: 3px;">Category</div>
+          <div style="padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: white; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #8b5cf6; flex-shrink: 0;"></span>
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Small Box</span>
+            <span style="margin-left: auto; color: #9ca3af; font-size: 9px;">▼</span>
+          </div>
+        </div>
+        <div style="flex: 0.6;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #9ca3af; margin-bottom: 3px;">Version</div>
+          <div style="padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: white; font-size: 12px; cursor: pointer; display: flex; align-items: center;">
+            <span>v2</span>
+            <span style="margin-left: auto; color: #9ca3af; font-size: 9px;">▼</span>
+          </div>
+        </div>
+      </div>
+      <p style="font-size: 11px; color: #6b7280; margin-top: 8px;">☝️ Click opens the same dropdown/search panel — just the trigger is smaller</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>How should the dropdown panel open in row context?</h3>
+  <p class="subtitle">The search/select dropdown needs to appear somewhere when clicked</p>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Floating dropdown below the field</h3>
+        <p>Dropdown opens directly below the compact trigger, floating over other content. Same dropdown panel as the modal version, just positioned absolutely. This is how the existing CategorySelector already works (portal-rendered).</p>
+        <p style="font-size: 12px; color: #6b7280;">Consistent with existing pattern. May overlap other row items — standard UX for dropdowns.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Popover/modal overlay</h3>
+        <p>Clicking the field opens a small centered popover or modal with the full search+select experience. Provides more room for the search list and "create new" form without competing for row space.</p>
+        <p style="font-size: 12px; color: #6b7280;">More disruptive but gives more room. Better for complex fields like Category with dimensions.</p>
+      </div>
+    </div>
+  </div>
+</div>

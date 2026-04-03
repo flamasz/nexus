@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cd * && git*)",
+      "Bash(cd * && git* && git*)",
+      "Bash(cd:*)",
+      "Bash(git:*)"
+    ]
+  }
+}

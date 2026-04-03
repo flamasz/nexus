@@ -1,0 +1,105 @@
+<h2>Design Overview: Revision 1</h2>
+<p class="subtitle">Adapt existing packaging components for reuse across Order Items and the entire app</p>
+
+<div class="section">
+  <h3>1. Component Changes</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #111; margin-bottom: 8px;">📝 ItemNameCombobox</div>
+      <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+        <strong>Add:</strong> <code>variant="compact"</code> prop<br>
+        <strong>Compact mode:</strong> Smaller trigger, no label, pill badge stays, dropdown unchanged<br>
+        <strong>Used in:</strong> PackagingForm (default) + OrderItemRow (compact)
+      </div>
+    </div>
+
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #111; margin-bottom: 8px;">🏷️ CategorySelector</div>
+      <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+        <strong>Add:</strong> <code>variant="compact"</code> prop<br>
+        <strong>Compact mode:</strong> Smaller trigger with color dot + name, no dimensions info box below, dropdown unchanged with colors/dimensions/edit<br>
+        <strong>Used in:</strong> PackagingForm (default) + OrderItemRow (compact)
+      </div>
+    </div>
+
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #111; margin-bottom: 8px;">🆕 VersionCombobox</div>
+      <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+        <strong>New component</strong> modeled after ItemNameCombobox<br>
+        <strong>Props:</strong> itemNameId, categoryId, versions list, onSelect, onCreate<br>
+        <strong>Behavior:</strong> Searchable dropdown, "+ Create new version" at bottom, disabled when item_name or category is null<br>
+        <strong>Supports:</strong> default + compact variants
+      </div>
+    </div>
+
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #111; margin-bottom: 8px;">🎨 ItemStatusDropdown</div>
+      <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+        <strong>Already exists</strong> and works as a color-coded pill with dropdown<br>
+        <strong>Add:</strong> <code>variant="compact"</code> prop for smaller sizing<br>
+        <strong>Used for:</strong> Approval Status in OrderItemRow
+      </div>
+    </div>
+
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #111; margin-bottom: 8px;">🚦 ItemOrderStatusDropdown</div>
+      <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+        <strong>New component</strong> modeled after ItemStatusDropdown<br>
+        <strong>Statuses:</strong> new (red), final (green), cancel (gray) — same colors as current<br>
+        <strong>Behavior:</strong> Color-coded pill trigger, colored dropdown options on click<br>
+        <strong>Supports:</strong> default + compact variants
+      </div>
+    </div>
+
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #111; margin-bottom: 8px;">🔢 QTY Field</div>
+      <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+        <strong>Simple CSS fix:</strong> Hide spinner buttons via CSS<br>
+        <code>input[type=number]::-webkit-inner-spin-button { display: none; }</code><br>
+        Applied globally or as a utility class
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2. OrderItemRow Rewrite</h3>
+  <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 13px; line-height: 1.8;">
+    Replace all 4 <code>&lt;select&gt;</code> elements in OrderItemRow with:
+    <ul style="margin: 8px 0; padding-left: 20px;">
+      <li><code>&lt;ItemNameCombobox variant="compact" /&gt;</code> → replaces Item Name select</li>
+      <li><code>&lt;CategorySelector variant="compact" /&gt;</code> → replaces Category select</li>
+      <li><code>&lt;VersionCombobox variant="compact" /&gt;</code> → replaces Version select</li>
+      <li><code>&lt;ItemStatusDropdown variant="compact" /&gt;</code> → replaces Approval Status select</li>
+      <li><code>&lt;ItemOrderStatusDropdown variant="compact" /&gt;</code> → replaces Item Order Status select</li>
+      <li>QTY <code>&lt;input&gt;</code> stays, just hide spinners</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h3>3. Files Touched</h3>
+  <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 12px; line-height: 2;">
+    <span style="color: #f59e0b;">MODIFY</span> src/components/packaging/ItemNameCombobox.tsx — add compact variant<br>
+    <span style="color: #f59e0b;">MODIFY</span> src/components/packaging/CategorySelector.tsx — add compact variant<br>
+    <span style="color: #f59e0b;">MODIFY</span> src/components/packaging/ItemStatusDropdown.tsx — add compact variant<br>
+    <span style="color: #22c55e;">CREATE</span> src/components/packaging/VersionCombobox.tsx — new component<br>
+    <span style="color: #22c55e;">CREATE</span> src/components/orders/ItemOrderStatusDropdown.tsx — new component<br>
+    <span style="color: #f59e0b;">MODIFY</span> src/components/orders/OrderItemRow.tsx — swap selects for components<br>
+    <span style="color: #f59e0b;">MODIFY</span> src/app/globals.css (or tailwind) — hide number spinners
+  </div>
+</div>
+
+<div class="section">
+  <h3>4. What Stays the Same</h3>
+  <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 13px; color: #6b7280; line-height: 1.8;">
+    <ul style="margin: 0; padding-left: 20px;">
+      <li>All server actions unchanged — same DB operations</li>
+      <li>Data model unchanged — no new tables or columns</li>
+      <li>Debounce behavior on QTY and Notes unchanged</li>
+      <li>Version dependency logic (needs item_name + category) unchanged</li>
+      <li>PackagingForm continues to work exactly as before (default variant)</li>
+    </ul>
+  </div>
+</div>

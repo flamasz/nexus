@@ -1,0 +1,44 @@
+<h2>Version Field: How Should It Work?</h2>
+<p class="subtitle">Versions are currently plain strings (e.g., "v1", "v2") tied to an item_name + category combo. No dedicated Version table exists — they're derived from the <code>items</code> table.</p>
+
+<div class="section">
+  <h3>Current Behavior</h3>
+  <div class="mockup">
+    <div class="mockup-header">Version Field — Current</div>
+    <div class="mockup-body" style="padding: 16px; background: #f9fafb;">
+      <div style="max-width: 200px;">
+        <div style="font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Version</div>
+        <select style="width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white;">
+          <option>Select version...</option>
+          <option>v1</option>
+          <option>v2</option>
+        </select>
+        <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Disabled until Item Name + Category are both selected</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>How should "Create New Version" work?</h3>
+  <p class="subtitle">When a user types a version that doesn't exist, what happens?</p>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Free-text with suggestions</h3>
+        <p>The version field becomes a searchable combobox. It shows existing versions for that item+category combo as suggestions, but the user can type any string (e.g., "v3", "R2", "Final"). The typed value is saved directly to the order item's <code>version</code> field.</p>
+        <p style="color: #6b7280; font-size: 12px;">No new DB table needed. Versions are just strings. "Create new" simply means typing a value that doesn't match existing ones.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Structured creation (like Item Name)</h3>
+        <p>Add a "+ Create new version" option at the bottom of the dropdown. Clicking it shows a small inline form or confirmation. The new version string is validated and explicitly created. This mirrors the ItemNameCombobox pattern exactly.</p>
+        <p style="color: #6b7280; font-size: 12px;">No new DB table needed either — the "creation" is just accepting the new string value. But the UX has an explicit creation step rather than free-typing.</p>
+      </div>
+    </div>
+  </div>
+</div>

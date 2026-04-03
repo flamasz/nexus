@@ -1,0 +1,112 @@
+<h2>Drag-to-Reorder Design</h2>
+<p class="subtitle">How the feature fits into the existing OrderBlock</p>
+
+<div class="section">
+  <h3>Normal state — handle hidden</h3>
+  <div class="mockup">
+    <div class="mockup-header">Purchase Order #PO-2024-001</div>
+    <div class="mockup-body" style="padding:0;">
+
+      <!-- Column headers -->
+      <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:9px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">
+        <span style="width:14px;"></span>
+        <span style="width:80px;">Priority</span>
+        <span style="width:68px;">Status</span>
+        <span style="width:130px;">Item</span>
+        <span style="width:110px;">Category</span>
+        <span style="width:52px;text-align:right;">QTY</span>
+        <span style="width:68px;">Version</span>
+        <span style="width:90px;">Approval</span>
+        <span style="width:28px;text-align:center;">Art</span>
+        <span style="flex:1;">Notes</span>
+        <span style="width:16px;"></span>
+      </div>
+
+      <!-- Row 1 (normal) -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;background:white;">
+        <span style="width:14px;color:transparent;font-size:13px;">⠿</span>
+        <span style="width:80px;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:2px 5px;font-size:10px;color:#92400e;">🔴 Rush</span>
+        <span style="width:68px;background:#dbeafe;border:1px solid #bfdbfe;border-radius:4px;padding:2px 5px;font-size:10px;color:#1d4ed8;">In Progress</span>
+        <span style="width:130px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Cereal Box</span>
+        <span style="width:110px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Retail</span>
+        <span style="width:52px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;text-align:right;">5,000</span>
+        <span style="width:68px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">v2</span>
+        <span style="width:90px;background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:2px 5px;font-size:10px;color:#166534;">Approved</span>
+        <span style="width:28px;background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:2px 5px;font-size:10px;color:#166534;text-align:center;">Art</span>
+        <span style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#94a3b8;">Add notes…</span>
+        <span style="width:16px;color:#d1d5db;font-size:12px;">×</span>
+      </div>
+
+      <!-- Row 2 (hover state - handle visible) -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;background:#f8fafc;">
+        <span title="drag handle" style="width:14px;color:#94a3b8;font-size:13px;cursor:grab;">⠿</span>
+        <span style="width:80px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#64748b;">Standard</span>
+        <span style="width:68px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#64748b;">New</span>
+        <span style="width:130px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Bag Insert</span>
+        <span style="width:110px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Pouch</span>
+        <span style="width:52px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;text-align:right;">2,000</span>
+        <span style="width:68px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#94a3b8;">—</span>
+        <span style="width:90px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#94a3b8;">New</span>
+        <span style="width:28px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#94a3b8;text-align:center;">Art</span>
+        <span style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#94a3b8;">Add notes…</span>
+        <span style="width:16px;color:#d1d5db;font-size:12px;">×</span>
+      </div>
+      <div style="padding:4px 8px;font-size:9px;color:#94a3b8;font-style:italic;text-align:right;">↑ row 2 is hovered — handle appears</div>
+
+      <!-- Row 3 -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;background:white;">
+        <span style="width:14px;color:transparent;font-size:13px;">⠿</span>
+        <span style="width:80px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#64748b;">Standard</span>
+        <span style="width:68px;background:#fef9c3;border:1px solid #fde047;border-radius:4px;padding:2px 5px;font-size:10px;color:#713f12;">On Hold</span>
+        <span style="width:130px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Label Sheet</span>
+        <span style="width:110px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Label</span>
+        <span style="width:52px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;text-align:right;">10,000</span>
+        <span style="width:68px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">v1</span>
+        <span style="width:90px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;padding:2px 5px;font-size:10px;color:#991b1b;">Rejected</span>
+        <span style="width:28px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;padding:2px 5px;font-size:10px;color:#991b1b;text-align:center;">Art</span>
+        <span style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;">Needs new dieline</span>
+        <span style="width:16px;color:#d1d5db;font-size:12px;">×</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>While dragging</h3>
+  <div class="mockup">
+    <div class="mockup-header">Purchase Order #PO-2024-001</div>
+    <div class="mockup-body" style="padding:0;">
+
+      <!-- Row 1 -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;background:white;">
+        <span style="width:14px;color:transparent;">⠿</span>
+        <span style="width:80px;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:2px 5px;font-size:10px;color:#92400e;">🔴 Rush</span>
+        <span style="width:68px;font-size:10px;">In Progress</span>
+        <span style="width:130px;font-size:10px;">Cereal Box</span>
+        <span style="flex:1;font-size:10px;color:#94a3b8;">…</span>
+      </div>
+
+      <!-- Drag ghost (floating) -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border:1.5px solid #6366f1;border-radius:6px;font-size:11px;color:#64748b;background:white;box-shadow:0 8px 24px rgba(99,102,241,0.18);opacity:0.95;margin:4px 8px;transform:rotate(0.8deg);">
+        <span style="width:14px;color:#6366f1;font-size:13px;cursor:grabbing;">⠿</span>
+        <span style="width:80px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:10px;color:#64748b;">Standard</span>
+        <span style="width:68px;font-size:10px;">New</span>
+        <span style="width:130px;font-size:10px;">Bag Insert</span>
+        <span style="flex:1;font-size:10px;color:#94a3b8;">being dragged…</span>
+      </div>
+
+      <!-- Drop placeholder -->
+      <div style="height:34px;background:#f0f4ff;border:1.5px dashed #a5b4fc;border-radius:6px;margin:4px 8px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#818cf8;">drop here</div>
+
+      <!-- Row 3 -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;background:white;">
+        <span style="width:14px;color:transparent;">⠿</span>
+        <span style="width:80px;font-size:10px;">Standard</span>
+        <span style="width:68px;font-size:10px;">On Hold</span>
+        <span style="width:130px;font-size:10px;">Label Sheet</span>
+        <span style="flex:1;font-size:10px;color:#94a3b8;">…</span>
+      </div>
+    </div>
+  </div>
+  <p class="subtitle" style="margin-top:8px;">Dragged row lifts with a slight shadow + border. A placeholder slot shows the drop target. Order saves to DB automatically after drop.</p>
+</div>
