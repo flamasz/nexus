@@ -1,1 +1,11 @@
 .omx/
+.codex/log/
+.codex/sessions/
+.codex/state_*.sqlite*
+.codex/logs_*.sqlite
+.codex/models_cache.json
+.codex/history.jsonl
+.codex/auth.json
+.codex/cache/
+.codex/tmp/
+.codex/shell_snapshots/
