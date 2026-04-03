@@ -9,3 +9,4 @@
 .codex/cache/
 .codex/tmp/
 .codex/shell_snapshots/
+.codex/logs_*.sqlite*
