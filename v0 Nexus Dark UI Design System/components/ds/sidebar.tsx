@@ -1,14 +1,24 @@
 "use client"
 
-import { useState } from "react"
-import { cn } from "@/lib/utils"
+import { useState } from 'react'
+import {
+  BarChart3,
+  FileText,
+  HelpCircle,
+  LayoutGrid,
+  Menu,
+  Palette,
+  Settings,
+  ShoppingCart,
+  Truck,
+} from 'lucide-react'
+
+import { cn } from '@/lib/utils'
 
 type NavItem = {
-  icon: React.ReactNode
   label: string
-  badge?: string | number
-  active?: boolean
-  href?: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
 }
 
 type NavGroup = {
@@ -16,203 +26,112 @@ type NavGroup = {
   items: NavItem[]
 }
 
-function IconGrid(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <rect x="2" y="2" width="6" height="6" rx="1.5" /><rect x="12" y="2" width="6" height="6" rx="1.5" />
-      <rect x="2" y="12" width="6" height="6" rx="1.5" /><rect x="12" y="12" width="6" height="6" rx="1.5" />
-    </svg>
-  )
-}
-function IconChart(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M2 14l4-4 4 3 4-6 4 3" /><rect x="2" y="16" width="16" height="1.2" rx="0.6" />
-    </svg>
-  )
-}
-function IconBox(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M10 2l8 4v8l-8 4-8-4V6l8-4z" /><path d="M10 2v14M2 6l8 4 8-4" />
-    </svg>
-  )
-}
-function IconUsers(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="7.5" cy="7" r="2.5" /><path d="M1.5 17c0-3.3 2.7-6 6-6" />
-      <circle cx="14" cy="7" r="2.5" /><path d="M18.5 17c0-3.3-2.7-6-6-6" />
-    </svg>
-  )
-}
-function IconShoppingCart(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M1 1h2.5l2 9h9l2-6H5" /><circle cx="8" cy="17" r="1.2" /><circle cx="15" cy="17" r="1.2" />
-    </svg>
-  )
-}
-function IconFileText(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V8l-4-6z" />
-      <path d="M12 2v6h6M7 10h6M7 13h4" />
-    </svg>
-  )
-}
-function IconSettings(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="10" cy="10" r="2.5" />
-      <path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.22 3.22l1.42 1.42M15.36 15.36l1.42 1.42M3.22 16.78l1.42-1.42M15.36 4.64l1.42-1.42" />
-    </svg>
-  )
-}
-function IconHelpCircle(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="10" cy="10" r="8" /><path d="M7.5 7.5a2.5 2.5 0 015 .83c0 1.67-2.5 2.5-2.5 2.5" /><circle cx="10" cy="14.5" r="0.5" fill="currentColor" />
-    </svg>
-  )
-}
-function IconWarehouse(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M2 8l8-5 8 5v9H2V8z" /><rect x="7" y="12" width="6" height="5" rx="1" />
-    </svg>
-  )
-}
-function IconDollarSign(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M10 2v16M14 5.5H8a2.5 2.5 0 000 5h4a2.5 2.5 0 010 5H6" />
-    </svg>
-  )
-}
-function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M13 4l-6 6 6 6" />
-    </svg>
-  )
-}
-
-const navGroups: NavGroup[] = [
+const NAV_GROUPS: NavGroup[] = [
   {
     items: [
-      { icon: <IconGrid className="w-4 h-4" />, label: "Dashboard", active: true },
-      { icon: <IconChart className="w-4 h-4" />, label: "Analytics" },
-    ]
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+      { label: 'Analytics', href: '/analytics', icon: BarChart3 },
+    ],
   },
   {
-    title: "Operations",
+    title: 'Purchase Orders',
     items: [
-      { icon: <IconShoppingCart className="w-4 h-4" />, label: "Orders", badge: 12 },
-      { icon: <IconBox className="w-4 h-4" />, label: "Products" },
-      { icon: <IconWarehouse className="w-4 h-4" />, label: "Inventory", badge: "Low" },
-      { icon: <IconUsers className="w-4 h-4" />, label: "Customers" },
-    ]
+      { label: 'Orders', href: '/orders', icon: ShoppingCart },
+      { label: 'Artwork', href: '/artwork', icon: Palette },
+      { label: 'Invoices', href: '/invoices', icon: FileText },
+      { label: 'Shipments', href: '/shipments', icon: Truck },
+    ],
   },
   {
-    title: "Finance",
+    title: 'System',
     items: [
-      { icon: <IconDollarSign className="w-4 h-4" />, label: "Billing" },
-      { icon: <IconFileText className="w-4 h-4" />, label: "Reports" },
-    ]
+      { label: 'Settings', href: '/settings', icon: Settings },
+      { label: 'Help', href: '/help', icon: HelpCircle },
+    ],
   },
-  {
-    title: "System",
-    items: [
-      { icon: <IconSettings className="w-4 h-4" />, label: "Settings" },
-      { icon: <IconHelpCircle className="w-4 h-4" />, label: "Help" },
-    ]
-  }
 ]
 
 interface SidebarProps {
   collapsed?: boolean
-  onCollapse?: (v: boolean) => void
+  onCollapse?: (collapsed: boolean) => void
 }
 
 export function Sidebar({ collapsed = false, onCollapse }: SidebarProps) {
-  const [activeItem, setActiveItem] = useState("Dashboard")
+  const [activePath, setActivePath] = useState('/orders')
 
   return (
     <aside
       className={cn(
-        "flex flex-col h-full transition-all duration-300 ease-in-out",
-        "bg-sidebar border-r border-sidebar-border",
-        "relative shrink-0",
-        collapsed ? "w-[60px]" : "w-[220px]"
+        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out',
+        collapsed ? 'w-16' : 'w-[200px]',
       )}
     >
-      {/* Logo */}
-      <div className={cn(
-        "flex items-center gap-3 px-4 py-4 border-b border-sidebar-border shrink-0",
-        collapsed && "justify-center px-0"
-      )}>
-        <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0 blue-glow-sm">
-          <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-primary-foreground">
-            <path d="M10 2L17 6V14L10 18L3 14V6L10 2Z" fill="currentColor" opacity="0.9" />
-            <path d="M10 7L14 9.5V14.5L10 17L6 14.5V9.5L10 7Z" fill="white" opacity="0.4" />
-          </svg>
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-none">Nexus</p>
-            <p className="text-[10px] text-foreground-muted mt-0.5 leading-none">Enterprise Suite</p>
-          </div>
-        )}
+      <div className="flex items-center border-b border-sidebar-border px-4 py-4 shrink-0">
+        <button
+          onClick={() => onCollapse?.(!collapsed)}
+          className="size-8 shrink-0 rounded-lg text-foreground-muted transition-colors hover:bg-surface-raised hover:text-foreground flex items-center justify-center"
+          aria-label="Toggle sidebar"
+        >
+          <Menu className="size-5" />
+        </button>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {navGroups.map((group, gi) => (
-          <div key={gi}>
-            {group.title && !collapsed && (
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-foreground-subtle px-2 mb-1.5">
-                {group.title}
-              </p>
+      <nav className="flex-1 overflow-x-hidden overflow-y-auto px-2 py-3 space-y-4">
+        {NAV_GROUPS.map((group, groupIndex) => (
+          <div key={groupIndex}>
+            {group.title && (
+              <div className="relative mb-1 h-6 px-2 flex items-center">
+                <p
+                  className={cn(
+                    'whitespace-nowrap text-[10px] font-semibold uppercase tracking-widest text-foreground-subtle transition-opacity duration-150',
+                    collapsed ? 'opacity-0' : 'opacity-100 delay-150',
+                  )}
+                >
+                  {group.title}
+                </p>
+                <div
+                  className={cn(
+                    'absolute inset-x-2 top-1/2 -translate-y-1/2 border-t border-border transition-opacity duration-150',
+                    collapsed ? 'opacity-100 delay-150' : 'opacity-0',
+                  )}
+                />
+              </div>
             )}
-            {group.title && collapsed && <div className="border-t border-border mx-2 mb-2" />}
             <ul className="space-y-0.5">
               {group.items.map((item) => {
-                const isActive = activeItem === item.label
+                const Icon = item.icon
+                const isActive = activePath === item.href
+
                 return (
-                  <li key={item.label}>
+                  <li key={item.href}>
                     <button
-                      onClick={() => setActiveItem(item.label)}
+                      onClick={() => setActivePath(item.href)}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm transition-all duration-150 group relative",
+                        'group relative flex w-full items-center rounded-xl px-3.5 py-2 text-sm transition-colors',
                         isActive
-                          ? "bg-primary-subtle text-primary font-medium blue-glow-sm"
-                          : "text-foreground-muted hover:text-foreground hover:bg-surface-raised"
+                          ? 'bg-primary-subtle text-primary font-medium blue-glow-sm'
+                          : 'text-foreground-muted hover:bg-surface-raised hover:text-foreground',
                       )}
                     >
-                      <span className={cn(
-                        "shrink-0 transition-colors",
-                        isActive ? "text-primary" : "text-foreground-subtle group-hover:text-foreground-muted"
-                      )}>
-                        {item.icon}
+                      <span
+                        className={cn(
+                          'shrink-0 transition-colors',
+                          isActive
+                            ? 'text-primary'
+                            : 'text-foreground-subtle group-hover:text-foreground-muted',
+                        )}
+                      >
+                        <Icon className="size-4" />
                       </span>
-                      {!collapsed && (
-                        <span className="flex-1 text-left leading-none">{item.label}</span>
-                      )}
-                      {!collapsed && item.badge !== undefined && (
-                        <span className={cn(
-                          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none",
-                          typeof item.badge === 'number'
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-warning-subtle text-warning"
-                        )}>
-                          {item.badge}
-                        </span>
-                      )}
-                      {collapsed && item.badge !== undefined && (
-                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
-                      )}
+                      <span
+                        className={cn(
+                          'flex-1 whitespace-nowrap text-left leading-none overflow-hidden transition-[opacity,margin,width] duration-150',
+                          collapsed ? 'ml-0 w-0 opacity-0' : 'ml-2.5 opacity-100 delay-150',
+                        )}
+                      >
+                        {item.label}
+                      </span>
                     </button>
                   </li>
                 )
@@ -222,28 +141,27 @@ export function Sidebar({ collapsed = false, onCollapse }: SidebarProps) {
         ))}
       </nav>
 
-      {/* User */}
-      <div className={cn(
-        "border-t border-sidebar-border p-2 shrink-0",
-        collapsed && "flex justify-center"
-      )}>
-        {collapsed ? (
-          <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-            <span className="text-[10px] font-bold text-primary">JD</span>
+      <div className="border-t border-sidebar-border p-2 shrink-0">
+        <div className="flex items-center px-2 py-2">
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0 blue-glow-sm">
+            <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-primary-foreground">
+              <path d="M10 2L17 6V14L10 18L3 14V6L10 2Z" fill="currentColor" opacity="0.9" />
+              <path d="M10 7L14 9.5V14.5L10 17L6 14.5V9.5L10 7Z" fill="white" opacity="0.4" />
+            </svg>
           </div>
-        ) : (
-          <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface-raised cursor-pointer transition-colors">
-            <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-              <span className="text-[10px] font-bold text-primary">JD</span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-foreground leading-none">Jane Doe</p>
-              <p className="text-[10px] text-foreground-muted mt-0.5 leading-none truncate">Admin</p>
-            </div>
+          <div
+            className={cn(
+              'overflow-hidden whitespace-nowrap transition-[opacity,margin,width] duration-150',
+              collapsed ? 'ml-0 w-0 opacity-0' : 'ml-2.5 opacity-100 delay-150',
+            )}
+          >
+            <p className="text-sm font-semibold leading-none text-foreground">Nexus</p>
+            <p className="mt-0.5 text-[10px] leading-none text-foreground-muted">
+              Enterprise Suite
+            </p>
           </div>
-        )}
+        </div>
       </div>
-
     </aside>
   )
 }

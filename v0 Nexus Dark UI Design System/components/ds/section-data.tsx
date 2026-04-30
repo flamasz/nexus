@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts"
 
@@ -50,7 +50,7 @@ function ChartTooltip({ active, payload, label }: {
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
           <span className="text-foreground-muted capitalize">{p.name}:</span>
           <span className="text-foreground font-semibold tabular-nums">
-            {typeof p.value === 'number' && p.name === 'revenue' || p.name === 'target'
+            {typeof p.value === 'number' && (p.name === 'revenue' || p.name === 'target')
               ? `$${p.value.toLocaleString()}`
               : p.value.toLocaleString()}
           </span>
@@ -89,8 +89,6 @@ function StatusBadge({ status }: { status: string }) {
    CHARTS SECTION
 ════════════════════════════════ */
 export function SectionCharts() {
-  const [activeArea, setActiveArea] = useState<string | null>(null)
-
   return (
     <section id="charts" className="space-y-6">
       <div className="mb-6">
@@ -220,7 +218,11 @@ export function SectionTable() {
   const toggleRow = (id: string) => {
     setSelectedRows(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -371,7 +373,6 @@ export function SectionTable() {
    MISC COMPONENTS
 ════════════════════════════════ */
 export function SectionMisc() {
-  const [progress] = useState(68)
   const [tab, setTab] = useState("overview")
 
   return (

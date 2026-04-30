@@ -34,9 +34,6 @@ function IconChevronRight(p: React.SVGProps<SVGSVGElement>) {
 function IconCheck(p: React.SVGProps<SVGSVGElement>) {
   return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M4 10l4 4 8-8" /></svg>
 }
-function IconUser(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="10" cy="7" r="3" /><path d="M3 18c0-3.9 3.1-7 7-7s7 3.1 7 7" /></svg>
-}
 function IconMail(p: React.SVGProps<SVGSVGElement>) {
   return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2" y="4" width="16" height="12" rx="2" /><path d="M2 7l8 5 8-5" /></svg>
 }

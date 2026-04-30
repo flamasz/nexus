@@ -16,6 +16,7 @@ const colors = [
   { label: "Surface Overlay", token: "--surface-overlay", hex: "#343c52", cls: "bg-surface-overlay border border-border" },
   { label: "Primary", token: "--primary", hex: "#3b82f6", cls: "bg-primary" },
   { label: "Primary Subtle", token: "--primary-subtle", hex: "blue/15", cls: "bg-primary-subtle border border-primary/30" },
+  { label: "Primary Muted", token: "--primary-muted", hex: "blue/10", cls: "bg-primary-muted border border-primary/20" },
   { label: "Success", token: "--success", hex: "#22c55e", cls: "bg-success" },
   { label: "Warning", token: "--warning", hex: "#f59e0b", cls: "bg-warning" },
   { label: "Destructive", token: "--destructive", hex: "#ef4444", cls: "bg-destructive" },

@@ -1,46 +1,74 @@
 "use client"
 
-import { useState } from "react"
-import { cn } from "@/lib/utils"
-import { Sidebar } from "@/components/ds/sidebar"
-import { Topbar } from "@/components/ds/topbar"
-import { SectionTokens } from "@/components/ds/section-tokens"
-import { SectionButtons, SectionBadges, SectionInputs, SectionCards } from "@/components/ds/section-components"
-import { SectionCharts, SectionTable, SectionMisc } from "@/components/ds/section-data"
+import { useState } from 'react'
+import {
+  ChartColumnIncreasing,
+  FileStack,
+  FormInput,
+  MousePointerClick,
+  PackageCheck,
+  Palette,
+  PanelsTopLeft,
+  ShieldCheck,
+  Table2,
+  Tags,
+  Upload,
+  Waypoints,
+} from 'lucide-react'
+
+import { Sidebar } from '@/components/ds/sidebar'
+import {
+  SectionAdminAccess,
+  SectionOrderWorkflow,
+  SectionPackagingWorkspace,
+  SectionShellPatterns,
+  SectionUploadReview,
+} from '@/components/ds/section-nexus-workflows'
+import { SectionButtons, SectionBadges, SectionInputs, SectionCards } from '@/components/ds/section-components'
+import { SectionCharts, SectionTable } from '@/components/ds/section-data'
+import { SectionReuseKit } from '@/components/ds/section-reuse-kit'
+import { SectionTokens } from '@/components/ds/section-tokens'
+import { Topbar } from '@/components/ds/topbar'
+import { cn } from '@/lib/utils'
 
 const navItems = [
-  { id: "tokens", label: "Foundations", icon: PaletteIcon },
-  { id: "buttons", label: "Buttons", icon: CursorIcon },
-  { id: "badges", label: "Badges", icon: TagIcon },
-  { id: "inputs", label: "Form Controls", icon: InputIcon },
-  { id: "cards", label: "Cards & Panels", icon: LayersIcon },
-  { id: "charts", label: "Charts", icon: ChartIcon },
-  { id: "tables", label: "Tables", icon: TableIcon },
-  { id: "misc", label: "Misc", icon: GridIcon },
+  { id: 'reuse', label: 'Reuse Kit', icon: PackageCheck },
+  { id: 'tokens', label: 'Foundations', icon: Palette },
+  { id: 'shell', label: 'App Shell', icon: Waypoints },
+  { id: 'buttons', label: 'Buttons', icon: MousePointerClick },
+  { id: 'badges', label: 'Badges', icon: Tags },
+  { id: 'inputs', label: 'Form Controls', icon: FormInput },
+  { id: 'cards', label: 'Cards & Panels', icon: PanelsTopLeft },
+  { id: 'workspace', label: 'Artwork Workspace', icon: FileStack },
+  { id: 'orders', label: 'Purchase Orders', icon: FileStack },
+  { id: 'uploads', label: 'Upload Review', icon: Upload },
+  { id: 'admin', label: 'Admin Access', icon: ShieldCheck },
+  { id: 'charts', label: 'Charts', icon: ChartColumnIncreasing },
+  { id: 'tables', label: 'Tables', icon: Table2 },
 ]
 
 export default function DesignSystemPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [activeSection, setActiveSection] = useState("tokens")
+  const [activeSection, setActiveSection] = useState('reuse')
 
   const scrollTo = (id: string) => {
     setActiveSection(id)
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* App Sidebar */}
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar collapsed={sidebarCollapsed} onCollapse={setSidebarCollapsed} />
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Topbar onToggleSidebar={() => setSidebarCollapsed((v) => !v)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Topbar
+          pageTitle="Design System"
+          onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+        />
 
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Design System Nav */}
-          <aside className="hidden lg:flex flex-col w-48 shrink-0 border-r border-border bg-surface overflow-y-auto py-4 px-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-foreground-subtle px-2 mb-3">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <aside className="hidden w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface px-2 py-4 lg:flex">
+            <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-widest text-foreground-subtle">
               Design System
             </p>
             <nav className="space-y-0.5">
@@ -51,115 +79,108 @@ export default function DesignSystemPage() {
                     key={item.id}
                     onClick={() => scrollTo(item.id)}
                     className={cn(
-                      "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all text-left",
+                      'flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs font-medium transition-all',
                       activeSection === item.id
-                        ? "bg-primary-subtle text-primary"
-                        : "text-foreground-muted hover:text-foreground hover:bg-surface-raised"
+                        ? 'bg-primary-subtle text-primary'
+                        : 'text-foreground-muted hover:bg-surface-raised hover:text-foreground',
                     )}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <Icon className="size-3.5 shrink-0" />
                     {item.label}
                   </button>
                 )
               })}
             </nav>
 
-            {/* Version badge */}
-            <div className="mt-auto pt-4 px-2">
-              <div className="p-3 rounded-xl bg-surface-raised border border-border">
-                <p className="text-[10px] font-semibold text-foreground leading-none">Nexus DS</p>
-                <p className="text-[10px] text-foreground-muted mt-1">v1.0.0 — 2026</p>
-                <div className="mt-2 flex gap-1">
-                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-success-subtle text-success border border-success/25">Stable</span>
+            <div className="mt-auto px-2 pt-4">
+              <div className="rounded-xl border border-border bg-surface-raised p-3">
+                <p className="text-[10px] font-semibold leading-none text-foreground">Nexus DS</p>
+                <p className="mt-1 text-[10px] text-foreground-muted">Synced to current Nexus shell and workflows</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <span className="rounded-md border border-success/25 bg-success-subtle px-1.5 py-0.5 text-[9px] font-semibold text-success">
+                    Live patterns
+                  </span>
+                  <span className="rounded-md border border-primary/25 bg-primary-subtle px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                    Workflow docs
+                  </span>
                 </div>
               </div>
             </div>
           </aside>
 
-          {/* Scrollable content */}
-          <main className="flex-1 overflow-y-auto p-6 space-y-16 min-w-0">
-            {/* Hero banner */}
-            <div className="relative rounded-2xl overflow-hidden border border-border p-8">
+          <main className="flex-1 min-w-0 overflow-y-auto p-6 space-y-16">
+            <div className="relative overflow-hidden rounded-2xl border border-border p-8">
               <div
                 className="absolute inset-0"
                 style={{
-                  background: "radial-gradient(ellipse 80% 60% at 60% 40%, oklch(0.62 0.21 255 / 0.12) 0%, transparent 70%), radial-gradient(ellipse 40% 50% at 20% 60%, oklch(0.70 0.16 210 / 0.08) 0%, transparent 70%)"
+                  background:
+                    'radial-gradient(ellipse 80% 60% at 60% 40%, oklch(0.62 0.21 255 / 0.12) 0%, transparent 70%), radial-gradient(ellipse 40% 50% at 20% 60%, oklch(0.70 0.16 210 / 0.08) 0%, transparent 70%)',
                 }}
               />
-              <div className="relative flex items-start justify-between gap-6 flex-wrap">
-                <div className="max-w-xl">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary-subtle text-primary border border-primary/25">
-                      Design System
+              <div className="relative flex flex-wrap items-start justify-between gap-6">
+                <div className="max-w-2xl">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="rounded-full border border-primary/25 bg-primary-subtle px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      Live sync
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface-overlay text-foreground-muted border border-border">
-                      v1.0.0
+                    <span className="rounded-full border border-border bg-surface-overlay px-2 py-0.5 text-[10px] font-semibold text-foreground-muted">
+                      Nexus purchase-order platform
                     </span>
                   </div>
-                  <h1 className="text-3xl font-bold text-foreground text-balance mb-3 leading-tight">
+                  <h1 className="mb-3 text-3xl font-bold leading-tight text-foreground text-balance">
                     Nexus ERP<br />
                     <span className="text-primary">Design System</span>
                   </h1>
-                  <p className="text-sm text-foreground-muted leading-relaxed text-pretty">
-                    A comprehensive, dark-themed UI kit for internal enterprise dashboards. Built on dark slate, electric blue, and glassmorphism — with every component you need to ship fast.
+                  <p className="text-sm leading-relaxed text-foreground-muted text-pretty">
+                    Updated to mirror the current Nexus application shell and workflow components — including the artwork workspace, purchase-order block, upload review surfaces, and admin access controls.
                   </p>
                 </div>
-                <div className="flex flex-col gap-3 shrink-0">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {[
-                    { value: "50+", label: "Components" },
-                    { value: "12", label: "Color tokens" },
-                    { value: "7", label: "Radius steps" },
-                  ].map((s) => (
-                    <div key={s.label} className="glass rounded-xl px-4 py-2 text-center min-w-[80px]">
-                      <p className="text-xl font-bold text-primary leading-none">{s.value}</p>
-                      <p className="text-[10px] text-foreground-muted mt-0.5">{s.label}</p>
+                    {
+                      title: 'Shell parity',
+                      body: 'Sidebar and header now follow the live route map and compact controls.',
+                    },
+                    {
+                      title: 'Workflow coverage',
+                      body: 'Packaging, uploads, purchase orders, and access editing are documented.',
+                    },
+                    {
+                      title: 'Reusable kit',
+                      body: 'Foundations, primitives, shell, and workflow blueprints can be copied into new apps.',
+                    },
+                    {
+                      title: 'Shared semantics',
+                      body: 'Category, item-status, and upload-status badges are now first-class components.',
+                    },
+                  ].map((item) => (
+                    <div key={item.title} className="glass min-w-[160px] rounded-xl px-4 py-3">
+                      <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-foreground-muted">{item.body}</p>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Sections */}
+            <SectionReuseKit />
             <SectionTokens />
+            <SectionShellPatterns />
             <SectionButtons />
             <SectionBadges />
             <SectionInputs />
             <SectionCards />
+            <SectionPackagingWorkspace />
+            <SectionOrderWorkflow />
+            <SectionUploadReview />
+            <SectionAdminAccess />
             <SectionCharts />
             <SectionTable />
-            <SectionMisc />
 
-            {/* Footer spacer */}
             <div className="h-8" />
           </main>
         </div>
       </div>
     </div>
   )
-}
-
-/* ── Nav Icons ── */
-function PaletteIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="8" cy="8" r="6" /><circle cx="5.5" cy="5.5" r="1" fill="currentColor" stroke="none" /><circle cx="10.5" cy="5.5" r="1" fill="currentColor" stroke="none" /><circle cx="8" cy="11" r="1" fill="currentColor" stroke="none" /></svg>
-}
-function CursorIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 2l10 5-5 1.5L6.5 14 3 2z" /></svg>
-}
-function TagIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M2 2h5l7 7-5 5-7-7V2z" /><circle cx="5.5" cy="5.5" r="1" fill="currentColor" stroke="none" /></svg>
-}
-function InputIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="1" y="5" width="14" height="6" rx="2" /><path d="M5 8h6" /></svg>
-}
-function LayersIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M8 1l7 4-7 4-7-4 7-4z" /><path d="M1 9l7 4 7-4" /><path d="M1 13l7 4 7-4" /></svg>
-}
-function ChartIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M2 12l3-4 3 2 3-5 3 3" /></svg>
-}
-function TableIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="1" y="2" width="14" height="12" rx="2" /><path d="M1 6h14M6 6v8" /></svg>
-}
-function GridIcon(p: React.SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="1" y="1" width="5" height="5" rx="1" /><rect x="10" y="1" width="5" height="5" rx="1" /><rect x="1" y="10" width="5" height="5" rx="1" /><rect x="10" y="10" width="5" height="5" rx="1" /></svg>
 }
