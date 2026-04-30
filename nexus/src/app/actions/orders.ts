@@ -68,12 +68,62 @@ export async function getOrders(): Promise<PurchaseOrderWithItems[]> {
     throw error;
   }
 
-  return (data || []).map((order) => ({
+  const orders = (data || []).map((order) => ({
     ...order,
     order_items: (order.order_items || []).sort(
       (a: OrderItem, b: OrderItem) => a.sort_order - b.sort_order
     ),
   })) as PurchaseOrderWithItems[];
+
+  const orderItems = orders.flatMap((order) => order.order_items);
+  const hasArtworkLookups = orderItems.some((item) => item.item_name_id && item.category_id);
+
+  if (!hasArtworkLookups) {
+    return orders;
+  }
+
+  const { data: artworkItems, error: artworkItemsError } = await supabase
+    .from('items')
+    .select('item_name_id, category_id, version, status, archived, updated_at')
+    .eq('organization_id', orgId)
+    .order('archived', { ascending: true })
+    .order('updated_at', { ascending: false });
+
+  if (artworkItemsError) {
+    throw artworkItemsError;
+  }
+
+  const statusByArtworkKey = new Map<string, ItemStatus>();
+
+  for (const item of (artworkItems || []) as {
+    item_name_id: string;
+    category_id: string | null;
+    version: string | null;
+    status: ItemStatus;
+  }[]) {
+    if (!item.category_id) {
+      continue;
+    }
+
+    const key = `${item.item_name_id}|${item.category_id}|${item.version ?? ''}`;
+    if (!statusByArtworkKey.has(key)) {
+      statusByArtworkKey.set(key, item.status);
+    }
+  }
+
+  return orders.map((order) => ({
+    ...order,
+    order_items: order.order_items.map((item) => {
+      if (!item.item_name_id || !item.category_id) {
+        return item;
+      }
+
+      const key = `${item.item_name_id}|${item.category_id}|${item.version ?? ''}`;
+      const artworkStatus = statusByArtworkKey.get(key);
+
+      return artworkStatus ? { ...item, approval_status: artworkStatus } : item;
+    }),
+  }));
 }
 
 export async function createOrder(): Promise<PurchaseOrder> {
@@ -259,11 +309,6 @@ export async function deleteOrderItem(itemId: string): Promise<void> {
   }
 }
 
-export interface VersionWithStatus {
-  version: string;
-  status?: string;
-}
-
 export async function reorderOrderItems(
   items: { id: string; sort_order: number }[]
 ): Promise<void> {
@@ -284,53 +329,4 @@ export async function reorderOrderItems(
       throw error;
     }
   }
-}
-
-export async function getVersionsForItemCategory(
-  itemNameId: string,
-  categoryId: string
-): Promise<VersionWithStatus[]> {
-  const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
-
-  const [itemsResult, orderItemsResult] = await Promise.all([
-    supabase
-      .from('items')
-      .select('version, status')
-      .eq('item_name_id', itemNameId)
-      .eq('category_id', categoryId)
-      .eq('organization_id', orgId)
-      .not('version', 'is', null),
-    supabase
-      .from('order_items')
-      .select('version, purchase_orders!inner(organization_id)')
-      .eq('item_name_id', itemNameId)
-      .eq('category_id', categoryId)
-      .eq('purchase_orders.organization_id', orgId)
-      .not('version', 'is', null),
-  ]);
-
-  if (itemsResult.error) {
-    throw itemsResult.error;
-  }
-
-  if (orderItemsResult.error) {
-    throw orderItemsResult.error;
-  }
-
-  const versionMap = new Map<string, string | undefined>();
-  for (const row of itemsResult.data || []) {
-    versionMap.set(row.version as string, row.status as string);
-  }
-
-  for (const row of orderItemsResult.data || []) {
-    const version = row.version as string;
-    if (!versionMap.has(version)) {
-      versionMap.set(version, undefined);
-    }
-  }
-
-  return [...versionMap.entries()]
-    .map(([version, status]) => ({ version, status }))
-    .sort((a, b) => a.version.localeCompare(b.version));
 }

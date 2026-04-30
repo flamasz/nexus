@@ -3,15 +3,13 @@
 import { useState, useEffect } from 'react';
 
 import { CategoryForm } from '@/components/packaging';
-import { Category, User } from '@/types/database';
+import { Category } from '@/types/database';
 import { getCategories, updateCategory, deleteCategory } from '@/app/actions/categories';
-import { getCurrentUser } from '@/app/actions/users';
 import { getOrgOrderSettings, upsertOrgOrderSettings } from '@/app/actions/settings';
 import { getCategoryColorClasses } from '@/lib/categoryColors';
 import { formatDimensions } from '@/lib/utils/formatDimensions';
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -24,12 +22,10 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [userData, categoriesData, orderSettings] = await Promise.all([
-          getCurrentUser(),
+        const [categoriesData, orderSettings] = await Promise.all([
           getCategories(),
           getOrgOrderSettings(),
         ]);
-        setUser(userData);
         setCategories(categoriesData);
         if (orderSettings) {
           setOrderPrefix(orderSettings.order_prefix);

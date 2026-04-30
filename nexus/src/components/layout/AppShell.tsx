@@ -1,39 +1,79 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AppNav } from './AppNav';
 import { Header } from './Header';
 import { createClient } from '@/lib/supabase/client';
 import { User, Organization } from '@/types/database';
+import { BusinessCentralConnectionStatusData } from '@/types/businessCentralItems';
 
 interface AppShellProps {
   user: User | null;
   organization: Organization | null;
   organizations: Organization[];
+  businessCentralStatus: BusinessCentralConnectionStatusData;
   children: React.ReactNode;
 }
 
-export function AppShell({ user, organization, organizations, children }: AppShellProps) {
+function buildPermissionsFingerprint(
+  user:
+    | Partial<Pick<User, 'organization_id' | 'role' | 'permissions_version' | 'permissions_updated_at'>>
+    | null
+    | undefined
+) {
+  if (!user) {
+    return null;
+  }
+
+  return JSON.stringify({
+    organization_id: user.organization_id ?? null,
+    role: user.role ?? null,
+    permissions_version: user.permissions_version ?? null,
+    permissions_updated_at: user.permissions_updated_at ?? null,
+  });
+}
+
+export function AppShell({ user, organization, organizations, businessCentralStatus, children }: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
-  const refreshFingerprint = useMemo(
-    () =>
-      user
-        ? JSON.stringify({
-            organization_id: user.organization_id,
-            role: user.role,
-            permissions_version: user.permissions_version,
-            permissions_updated_at: user.permissions_updated_at,
-          })
-        : null,
-    [user]
-  );
+  const pendingNavigationPathRef = useRef<string | null>(null);
+  const queuedPermissionRefreshRef = useRef(false);
+  const refreshFingerprint = useMemo(() => buildPermissionsFingerprint(user), [user]);
 
   const handleToggleSidebar = () => {
     setSidebarCollapsed((prev) => !prev);
   };
+
+  const handleNavigationStart = useCallback(
+    (href: string) => {
+      if (window.matchMedia('(max-width: 1023px)').matches) {
+        setSidebarCollapsed(true);
+      }
+
+      if (href === pathname) {
+        pendingNavigationPathRef.current = null;
+        return;
+      }
+
+      pendingNavigationPathRef.current = href;
+    },
+    [pathname]
+  );
+
+  useEffect(() => {
+    if (pendingNavigationPathRef.current !== pathname) {
+      return;
+    }
+
+    pendingNavigationPathRef.current = null;
+
+    if (queuedPermissionRefreshRef.current) {
+      queuedPermissionRefreshRef.current = false;
+      router.refresh();
+    }
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!user) {
@@ -50,15 +90,13 @@ export function AppShell({ user, organization, organizations, children }: AppShe
       }
 
       lastFingerprint = nextFingerprint;
-      router.refresh();
 
-      if (
-        pathname.startsWith('/orders') ||
-        pathname.startsWith('/artwork') ||
-        pathname.startsWith('/admin')
-      ) {
-        window.location.reload();
+      if (pendingNavigationPathRef.current && pendingNavigationPathRef.current !== pathname) {
+        queuedPermissionRefreshRef.current = true;
+        return;
       }
+
+      router.refresh();
     };
 
     const checkCurrentUserFingerprint = async () => {
@@ -76,12 +114,11 @@ export function AppShell({ user, organization, organizations, children }: AppShe
         return;
       }
 
-      const nextFingerprint = JSON.stringify({
-        organization_id: data.organization_id ?? null,
-        role: data.role ?? null,
-        permissions_version: data.permissions_version ?? null,
-        permissions_updated_at: data.permissions_updated_at ?? null,
-      });
+      const nextFingerprint = buildPermissionsFingerprint(data);
+
+      if (!nextFingerprint) {
+        return;
+      }
 
       refreshForPermissionChange(nextFingerprint);
     };
@@ -98,12 +135,11 @@ export function AppShell({ user, organization, organizations, children }: AppShe
         },
         (payload) => {
           const next = payload.new as Partial<User> | null;
-          const nextFingerprint = JSON.stringify({
-            organization_id: next?.organization_id ?? null,
-            role: next?.role ?? null,
-            permissions_version: next?.permissions_version ?? null,
-            permissions_updated_at: next?.permissions_updated_at ?? null,
-          });
+          const nextFingerprint = buildPermissionsFingerprint(next);
+          if (!nextFingerprint) {
+            return;
+          }
+
           refreshForPermissionChange(nextFingerprint);
         }
       )
@@ -136,10 +172,17 @@ export function AppShell({ user, organization, organizations, children }: AppShe
         collapsed={sidebarCollapsed}
         onCollapse={setSidebarCollapsed}
         onMenuClick={handleToggleSidebar}
+        onNavigateStart={handleNavigationStart}
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <Header user={user} organization={organization} organizations={organizations} onMenuClick={handleToggleSidebar} />
-        {children}
+        <Header
+          user={user}
+          organization={organization}
+          organizations={organizations}
+          businessCentralStatus={businessCentralStatus}
+          onMenuClick={handleToggleSidebar}
+        />
+        <Fragment key={refreshFingerprint ?? 'anonymous-user'}>{children}</Fragment>
       </div>
     </div>
   );

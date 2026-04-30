@@ -172,7 +172,7 @@ export function CategorySelector({
             top: dropdownPosition.top + 4,
             left: dropdownPosition.left,
             width: dropdownPosition.width,
-            zIndex: 9999,
+            zIndex: 10000,
           }}
         >
           <div className="p-2 border-b border-border">

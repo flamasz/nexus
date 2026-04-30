@@ -232,7 +232,7 @@ export function VersionCombobox({
             top: dropdownPosition.top + 4,
             left: dropdownPosition.left,
             width: dropdownPosition.width,
-            zIndex: 9999,
+            zIndex: 10000,
           }}
         >
           <ul ref={listRef} className="max-h-40 overflow-y-auto">

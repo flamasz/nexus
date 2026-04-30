@@ -1,11 +1,13 @@
 'use client';
 
+import { useTransition } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { resolveUserAccess } from '@/lib/auth/permissions';
 import { User, Organization } from '@/types/database';
-import { Search, Bell, ChevronDown, Settings, Shield, LogOut, Check, Menu } from 'lucide-react';
+import { BusinessCentralConnectionStatusData } from '@/types/businessCentralItems';
+import { Search, Bell, ChevronDown, Settings, Shield, LogOut, Check, Menu, AlertCircle, RefreshCw } from 'lucide-react';
 import { switchOrganization } from '@/app/actions/organizations';
 import {
   DropdownMenu,
@@ -15,19 +17,34 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   user: User | null;
   organization: Organization | null;
   organizations: Organization[];
+  businessCentralStatus: BusinessCentralConnectionStatusData;
   onMenuClick?: () => void;
 }
 
-export function Header({ user, organization, organizations, onMenuClick }: HeaderProps) {
+function formatTimestamp(value: string | null): string {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
+export function Header({ user, organization, organizations, businessCentralStatus, onMenuClick }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const access = resolveUserAccess(user);
+  const [isSwitchingOrganization, startSwitchOrganization] = useTransition();
+  const organizationsToShow = organization && !organizations.some((org) => org.id === organization.id)
+    ? [organization, ...organizations]
+    : organizations;
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -88,7 +105,7 @@ export function Header({ user, organization, organizations, onMenuClick }: Heade
         {/* Organization pill */}
         {organization && (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger id="app-header-organization-menu-trigger" asChild>
               <button className="flex items-center gap-2 h-8 pl-3.5 pr-3 rounded-full border border-primary/50 bg-primary/10 text-sm hover:bg-primary/20 transition-colors">
                 <div className="size-5 rounded bg-primary flex items-center justify-center">
                   <span className="text-[10px] font-bold text-primary-foreground">
@@ -99,38 +116,44 @@ export function Header({ user, organization, organizations, onMenuClick }: Heade
                 <ChevronDown className="size-3.5 text-primary/70" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48 text-xs">
-              {organizations.length <= 1 ? (
-                <div className="px-2 py-3 text-center text-foreground-muted">
-                  No other organizations
-                </div>
-              ) : (
-                <>
-                  <DropdownMenuLabel className="text-xs">Organizations</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {organizations.map((org) => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => {
-                        if (org.id !== organization.id) {
-                          switchOrganization(org.id);
-                        }
-                      }}
-                      className="cursor-pointer text-xs"
-                    >
-                      <div className="size-4 rounded bg-primary/20 flex items-center justify-center mr-2">
-                        <span className="text-[8px] font-bold text-primary">
-                          {org.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <span className="flex-1">{org.name}</span>
-                      {org.id === organization.id && (
-                        <Check className="size-3.5 text-primary ml-2" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
+            <DropdownMenuContent align="end" className="w-72 p-3">
+              <div className="space-y-3">
+                <BusinessCentralSyncStatusSection status={businessCentralStatus} />
+
+                <Separator />
+
+                <section className="space-y-1.5">
+                  <h3 className="px-1 text-xs font-semibold text-foreground">Organizations</h3>
+
+                  <div className="space-y-1">
+                    {organizationsToShow.map((org) => {
+                      const isCurrent = org.id === organization.id;
+                      return (
+                        <DropdownMenuItem
+                          key={org.id}
+                          disabled={isCurrent || isSwitchingOrganization}
+                          onClick={() => {
+                            if (!isCurrent) {
+                              startSwitchOrganization(() => {
+                                void switchOrganization(org.id);
+                              });
+                            }
+                          }}
+                          className="cursor-pointer px-1.5 py-1.5 text-xs"
+                        >
+                          <div className="size-5 rounded bg-primary/20 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-primary">
+                              {org.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="min-w-0 flex-1 truncate">{org.name}</span>
+                          {isCurrent && <Check className="size-3.5 text-primary" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -138,7 +161,7 @@ export function Header({ user, organization, organizations, onMenuClick }: Heade
         {/* User avatar */}
         {user && (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger id="app-header-user-menu-trigger" asChild>
               <button className="size-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center hover:bg-primary/30 transition-colors">
                 <span className="text-xs font-bold text-primary">
                   {user.display_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -177,5 +200,63 @@ export function Header({ user, organization, organizations, onMenuClick }: Heade
         )}
       </div>
     </header>
+  );
+}
+
+function BusinessCentralSyncStatusSection({ status }: { status: BusinessCentralConnectionStatusData }) {
+  const { connection, syncProgress } = status;
+
+  if (syncProgress.inProgress) {
+    return (
+      <section className="px-1">
+        <h3 className="text-xs font-semibold text-foreground">Business Central sync</h3>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-primary">
+          <RefreshCw className="size-3 animate-spin" />
+          Syncing since {formatTimestamp(syncProgress.since)}
+        </p>
+      </section>
+    );
+  }
+
+  if (connection.kind === 'not_configured') {
+    return (
+      <section className="px-1">
+        <h3 className="text-xs font-semibold text-foreground">Business Central sync</h3>
+        <p className="mt-1 text-xs text-foreground-muted">Not connected</p>
+      </section>
+    );
+  }
+
+  if (connection.kind === 'error') {
+    return (
+      <section className="px-1">
+        <h3 className="text-xs font-semibold text-foreground">Business Central sync</h3>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-destructive">
+          <AlertCircle className="size-3" />
+          Connection error
+        </p>
+      </section>
+    );
+  }
+
+  if (connection.lastError) {
+    return (
+      <section className="px-1">
+        <h3 className="text-xs font-semibold text-foreground">Business Central sync</h3>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-warning">
+          <AlertCircle className="size-3" />
+          Last sync failed
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="px-1">
+      <h3 className="text-xs font-semibold text-foreground">Business Central sync</h3>
+      <p className="mt-1 text-xs text-foreground-muted">
+        Last sync: {formatTimestamp(connection.lastPulledAt)}
+      </p>
+    </section>
   );
 }

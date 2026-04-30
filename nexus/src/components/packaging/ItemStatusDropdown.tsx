@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ItemStatus } from '@/types/database';
 import { ITEM_STATUS_CONFIG, ITEM_STATUS_OPTIONS } from '@/lib/itemStatus';
 
@@ -13,13 +14,31 @@ interface ItemStatusDropdownProps {
 export function ItemStatusDropdown({ status, onStatusChange, variant = 'default' }: ItemStatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const config = ITEM_STATUS_CONFIG[status];
 
+  const updatePosition = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setDropdownPosition({
+      top: rect.bottom + 4,
+      left: rect.left,
+    });
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(target))
+      ) {
         setIsOpen(false);
       }
     }
@@ -31,14 +50,19 @@ export function ItemStatusDropdown({ status, onStatusChange, variant = 'default'
     }
 
     if (isOpen) {
+      updatePosition();
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleEscape);
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('keydown', handleEscape);
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
   const handleSelect = async (newStatus: ItemStatus) => {
     if (newStatus === status || isUpdating) return;
@@ -57,8 +81,12 @@ export function ItemStatusDropdown({ status, onStatusChange, variant = 'default'
   return (
     <div ref={containerRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) updatePosition();
+          setIsOpen(!isOpen);
+        }}
         disabled={isUpdating}
         className={`inline-flex items-center gap-1 rounded-full font-medium border transition-colors ${config.bg} ${config.text} ${config.border} hover:opacity-80 disabled:opacity-50 ${
           variant === 'compact'
@@ -72,8 +100,16 @@ export function ItemStatusDropdown({ status, onStatusChange, variant = 'default'
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-1 bg-surface-overlay border border-border rounded-lg shadow-lg z-50 min-w-[140px]">
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed bg-surface-overlay border border-border rounded-lg shadow-lg min-w-[140px]"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            zIndex: 10000,
+          }}
+        >
           <ul className="py-1">
             {ITEM_STATUS_OPTIONS.map((option) => {
               const optionConfig = ITEM_STATUS_CONFIG[option];
@@ -103,7 +139,8 @@ export function ItemStatusDropdown({ status, onStatusChange, variant = 'default'
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

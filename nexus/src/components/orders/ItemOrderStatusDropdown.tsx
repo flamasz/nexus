@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ItemOrderStatus } from '@/types/database';
 
 const ORDER_STATUS_CONFIG: Record<ItemOrderStatus, {
@@ -11,21 +12,21 @@ const ORDER_STATUS_CONFIG: Record<ItemOrderStatus, {
 }> = {
   new: {
     label: 'New',
-    bg: 'bg-red-900/30',
-    text: 'text-red-400',
-    border: 'border-red-700/50',
+    bg: 'bg-red-100 dark:bg-red-900/30',
+    text: 'text-red-700 dark:text-red-400',
+    border: 'border-red-300 dark:border-red-700/50',
   },
   final: {
     label: 'Final',
-    bg: 'bg-green-900/30',
-    text: 'text-green-400',
-    border: 'border-green-700/50',
+    bg: 'bg-green-100 dark:bg-green-900/30',
+    text: 'text-green-700 dark:text-green-400',
+    border: 'border-green-300 dark:border-green-700/50',
   },
   cancel: {
     label: 'Cancel',
-    bg: 'bg-gray-800/50',
-    text: 'text-gray-400',
-    border: 'border-gray-600/50',
+    bg: 'bg-gray-100 dark:bg-gray-800/50',
+    text: 'text-gray-700 dark:text-gray-400',
+    border: 'border-gray-300 dark:border-gray-600/50',
   },
 } as const;
 
@@ -44,13 +45,31 @@ export function ItemOrderStatusDropdown({
 }: ItemOrderStatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const config = ORDER_STATUS_CONFIG[status];
 
+  const updatePosition = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setDropdownPosition({
+      top: rect.bottom + 4,
+      left: rect.left,
+    });
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(target))
+      ) {
         setIsOpen(false);
       }
     }
@@ -62,14 +81,19 @@ export function ItemOrderStatusDropdown({
     }
 
     if (isOpen) {
+      updatePosition();
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleEscape);
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('keydown', handleEscape);
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
   const handleSelect = async (newStatus: ItemOrderStatus) => {
     if (newStatus === status || isUpdating) return;
@@ -90,8 +114,12 @@ export function ItemOrderStatusDropdown({
   return (
     <div ref={containerRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) updatePosition();
+          setIsOpen(!isOpen);
+        }}
         disabled={isUpdating}
         className={`inline-flex items-center rounded-full font-medium border transition-colors ${config.bg} ${config.text} ${config.border} hover:opacity-80 disabled:opacity-50 ${
           isCompact
@@ -105,8 +133,16 @@ export function ItemOrderStatusDropdown({
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-1 bg-surface-overlay border border-border rounded-lg shadow-lg z-50 min-w-[120px]">
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed bg-surface-overlay border border-border rounded-lg shadow-lg min-w-[120px]"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            zIndex: 10000,
+          }}
+        >
           <ul className="py-1">
             {ORDER_STATUS_OPTIONS.map((option) => {
               const optionConfig = ORDER_STATUS_CONFIG[option];
@@ -136,7 +172,8 @@ export function ItemOrderStatusDropdown({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

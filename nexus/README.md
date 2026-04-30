@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nexus
 
-## Getting Started
+Nexus is a Next.js app for managing packaging artwork reviews. Teams upload artwork files against packaging items, admins review them, and the app sends email notifications for uploads and review events.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 + React 19 + TypeScript
+- Supabase for Postgres, Auth, and Storage
+- Tailwind CSS 4
+- Resend for email delivery
+
+## Local App Setup
+
+Run everything from [`nexus/`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus).
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create `nexus/.env.local` from [`nexus/.env.example`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/.env.example) and fill in:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+RESEND_API_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+3. Start the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-## Learn More
+## Supabase Notes
 
-To learn more about Next.js, take a look at the following resources:
+- SQL migrations live in [`nexus/supabase/migrations/`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/supabase/migrations).
+- Storage bucket setup lives in [`nexus/supabase/storage_setup.sql`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/supabase/storage_setup.sql).
+- The app expects a `packaging-files` storage bucket.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Develop With Pi
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Install Pi from the official package:
 
-## Deploy on Vercel
+```bash
+npm install -g @mariozechner/pi-coding-agent
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Then start Pi inside the app directory:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+cd nexus
+pi
+```
+
+Authenticate either with `/login` inside Pi or by exporting a supported provider API key before launch. Pi's official quick start supports both flows.
+
+When you run Pi from `nexus/`, it can use the repo guidance already present in:
+
+- [`AGENTS.md`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/AGENTS.md)
+- [`nexus/CLAUDE.md`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/CLAUDE.md)
+
+Project-local Pi additions for this repo live in:
+
+- [`nexus/.pi/skills/nexus-dev/SKILL.md`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/.pi/skills/nexus-dev/SKILL.md)
+- [`nexus/.pi/prompts/ship.md`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/.pi/prompts/ship.md)
+
+Useful Pi flows for this app:
+
+- `/skill:nexus-dev` for project context and verification expectations
+- `/ship` for a final pass before declaring work complete
+- `@src/...` to attach files into the prompt quickly
+
+## Working Areas
+
+- [`nexus/src/app/(protected)/`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/src/app/(protected)) for the authenticated app routes
+- [`nexus/src/app/actions/`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/src/app/actions) for server actions
+- [`nexus/src/components/`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/src/components) for UI
+- [`nexus/src/lib/supabase/`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/src/lib/supabase) for Supabase clients and middleware
+- [`nexus/src/types/database.ts`](/Users/macbook/Documents/AI%20Dev%20Projects/Artwork%20Review%20Tool/nexus/src/types/database.ts) for database types

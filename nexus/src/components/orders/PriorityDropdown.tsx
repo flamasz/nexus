@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ItemPriority } from '@/types/database';
 
 const PRIORITY_CONFIG: Record<ItemPriority, {
@@ -11,21 +12,21 @@ const PRIORITY_CONFIG: Record<ItemPriority, {
 }> = {
   '1_critical': {
     label: '1 - Critical',
-    bg: 'bg-red-900/30',
-    text: 'text-red-400',
-    border: 'border-red-700/50',
+    bg: 'bg-red-100 dark:bg-red-900/30',
+    text: 'text-red-700 dark:text-red-400',
+    border: 'border-red-300 dark:border-red-700/50',
   },
   '2_standard': {
     label: '2 - Standard',
-    bg: 'bg-blue-900/30',
-    text: 'text-blue-400',
-    border: 'border-blue-700/50',
+    bg: 'bg-blue-100 dark:bg-blue-900/30',
+    text: 'text-blue-700 dark:text-blue-400',
+    border: 'border-blue-300 dark:border-blue-700/50',
   },
   '3_low': {
     label: '3 - Low',
-    bg: 'bg-gray-800/50',
-    text: 'text-gray-400',
-    border: 'border-gray-600/50',
+    bg: 'bg-gray-100 dark:bg-gray-800/50',
+    text: 'text-gray-700 dark:text-gray-400',
+    border: 'border-gray-300 dark:border-gray-600/50',
   },
 } as const;
 
@@ -44,13 +45,31 @@ export function PriorityDropdown({
 }: PriorityDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const config = PRIORITY_CONFIG[priority];
 
+  const updatePosition = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setDropdownPosition({
+      top: rect.bottom + 4,
+      left: rect.left,
+    });
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(target))
+      ) {
         setIsOpen(false);
       }
     }
@@ -62,14 +81,19 @@ export function PriorityDropdown({
     }
 
     if (isOpen) {
+      updatePosition();
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleEscape);
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('keydown', handleEscape);
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
   const handleSelect = async (newPriority: ItemPriority) => {
     if (newPriority === priority || isUpdating) return;
@@ -90,8 +114,12 @@ export function PriorityDropdown({
   return (
     <div ref={containerRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) updatePosition();
+          setIsOpen(!isOpen);
+        }}
         disabled={isUpdating}
         className={`inline-flex items-center rounded-full font-medium border transition-colors ${config.bg} ${config.text} ${config.border} hover:opacity-80 disabled:opacity-50 ${
           isCompact
@@ -105,8 +133,16 @@ export function PriorityDropdown({
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-1 bg-surface-overlay border border-border rounded-lg shadow-lg z-50 min-w-[161px]">
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed bg-surface-overlay border border-border rounded-lg shadow-lg min-w-[161px]"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            zIndex: 10000,
+          }}
+        >
           <ul className="py-1">
             {PRIORITY_OPTIONS.map((option) => {
               const optionConfig = PRIORITY_CONFIG[option];
@@ -136,7 +172,8 @@ export function PriorityDropdown({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

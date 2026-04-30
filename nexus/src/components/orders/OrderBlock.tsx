@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import {
   closestCenter,
@@ -22,9 +23,20 @@ import { createItemName, updateItemName } from '@/app/actions/itemNames';
 import { createItem, updateItem } from '@/app/actions/items';
 import { archiveOrder, createOrderItem, deleteOrder, reorderOrderItems, updateOrderDate } from '@/app/actions/orders';
 import { CategoryForm } from '@/components/packaging/CategoryForm';
-import { Category, ItemName, OrderItemWithDetails, PurchaseOrderWithItems } from '@/types/database';
+import { Category, ItemName, ItemStatus, OrderItemWithDetails, PurchaseOrderWithItems } from '@/types/database';
 import { ArtworkModal } from './ArtworkModal';
 import { OrderItemRow } from './OrderItemRow';
+import { ITEM_STATUS_CONFIG } from '@/lib/itemStatus';
+
+const TABLE_ZOOM_OPTIONS = [1, 0.8, 0.6] as const;
+type TableZoom = (typeof TABLE_ZOOM_OPTIONS)[number];
+const TABLE_COLUMN_SCALE: Record<TableZoom, number> = {
+  1: 1,
+  0.8: 0.9,
+  0.6: 0.75,
+};
+const APPROVAL_LABEL_WIDTH_REM = 0.44;
+const APPROVAL_DROPDOWN_CHROME_REM = 1.625;
 
 interface OrderBlockProps {
   order: PurchaseOrderWithItems;
@@ -156,6 +168,7 @@ export function OrderBlock({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [displayDate, setDisplayDate] = useState(order.order_date);
+  const [tableZoom, setTableZoom] = useState<TableZoom>(1);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -208,6 +221,19 @@ export function OrderBlock({
     const itemId = itemsIdLookup[key];
     return itemId ? itemStatusMap[itemId] : undefined;
   };
+
+  const getEffectiveApprovalStatus = (oi: OrderItemWithDetails): ItemStatus =>
+    (getPackagingItemStatus(oi) as ItemStatus) ?? oi.approval_status ?? 'new';
+
+  const widestApprovalLabelLength = Math.max(
+    0,
+    ...orderItems.map((oi) => ITEM_STATUS_CONFIG[getEffectiveApprovalStatus(oi)].label.length)
+  );
+  const columnScale = TABLE_COLUMN_SCALE[tableZoom];
+  const approvalColumnWidth = `${Math.max(
+    'Approval'.length * APPROVAL_LABEL_WIDTH_REM * columnScale,
+    widestApprovalLabelLength * APPROVAL_LABEL_WIDTH_REM * columnScale + APPROVAL_DROPDOWN_CHROME_REM * columnScale
+  )}rem`;
 
   const handleAddItem = async () => {
     if (!access.canAddOrderItems) return;
@@ -262,13 +288,65 @@ export function OrderBlock({
     onOrderItemsChange(order.id, newItems);
   };
 
+  const scaledRem = (value: number) => `${value * tableZoom}rem`;
+  const scaledColumnRem = (value: number) => `${value * columnScale}rem`;
+
+  const tableZoomStyle = {
+    minWidth: `${800 * columnScale}px`,
+    '--po-table-font-size': scaledRem(0.75),
+    '--po-table-header-font-size': scaledRem(0.625),
+    '--po-table-line-height': '1.2',
+    '--po-table-row-py': scaledRem(0.375),
+    '--po-table-header-py': scaledRem(0.25),
+    '--po-table-pad-start': scaledRem(0.125),
+    '--po-table-pad-end': scaledRem(0.5),
+    '--po-table-gap': scaledRem(0.375),
+    '--po-table-gap-tight': scaledRem(0.125),
+    '--po-control-px': scaledRem(0.375),
+    '--po-control-py': scaledRem(0.25),
+    '--po-control-height': scaledRem(1.625),
+    '--po-col-handle': scaledColumnRem(1.25),
+    '--po-col-priority': scaledColumnRem(6.75),
+    '--po-col-status': scaledColumnRem(3.5),
+    '--po-col-item': scaledColumnRem(14),
+    '--po-col-category': scaledColumnRem(8.4),
+    '--po-col-qty': scaledColumnRem(4.8),
+    '--po-col-version': scaledColumnRem(5),
+    '--po-col-art': scaledColumnRem(2.5),
+    '--po-col-notes-min': scaledColumnRem(12.5),
+  } as CSSProperties & Record<`--po-${string}`, string>;
+
   return (
     <>
       <div className="bg-surface border border-border rounded-lg shadow-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised rounded-t-lg">
-          <div className="flex items-center gap-4">
-            <span className="font-bold text-foreground text-sm font-mono">{order.order_number}</span>
-            <DatePicker value={displayDate} onChange={handleDateChange} disabled={!access.canEditOrderDate} />
+          <div className="flex flex-col items-start gap-1.5">
+            <div className="flex items-center gap-4">
+              <span className="font-bold text-foreground text-sm font-mono">{order.order_number}</span>
+              <DatePicker value={displayDate} onChange={handleDateChange} disabled={!access.canEditOrderDate} />
+            </div>
+            <div className="flex items-center gap-1" aria-label="Order table zoom">
+              {TABLE_ZOOM_OPTIONS.map((zoom) => {
+                const active = tableZoom === zoom;
+                const label = `${Math.round(zoom * 100)}%`;
+
+                return (
+                  <button
+                    key={zoom}
+                    type="button"
+                    onClick={() => setTableZoom(zoom)}
+                    aria-pressed={active}
+                    className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                      active
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-surface text-foreground-muted hover:border-primary/50 hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             {access.canArchiveOrders && (
@@ -302,25 +380,30 @@ export function OrderBlock({
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="flex items-center w-max min-w-full px-2 py-1 bg-surface-raised border-b border-border text-[10px] font-medium text-foreground-subtle uppercase tracking-wide">
-              <span className="w-5 shrink-0" />
-              <span className="w-24 shrink-0 ml-1.5">Priority</span>
-              <span className="w-14 shrink-0 ml-1.5">Status</span>
-              <span className="w-56 shrink-0 ml-1.5">Item</span>
-              <span className="w-[8.4rem] shrink-0 ml-1.5">Category</span>
-              <span className="w-[4.8rem] shrink-0 ml-1.5 text-right">QTY</span>
-              {access.canViewArtworkFields && <span className="w-20 shrink-0 ml-1.5">Version</span>}
-              {access.canViewArtworkFields && <span className="w-[5.5rem] shrink-0 ml-1.5">Approval</span>}
-              {access.canOpenArtworkModal && <span className="w-10 shrink-0 ml-2 text-center">Art</span>}
-              <span className="flex-1 min-w-[200px] ml-1.5">Notes</span>
-              <span className="w-5 shrink-0 ml-1.5" />
+          <div className="po-table-zoom" style={tableZoomStyle}>
+            <div className="po-table-header po-table-row flex items-center w-max min-w-full bg-surface-raised border-b border-border text-[10px] font-medium text-foreground-subtle uppercase tracking-wide">
+              <span className="po-col-handle shrink-0" />
+              <span className="po-col-priority po-gap-tight shrink-0">Priority</span>
+              <span className="po-col-status po-gap shrink-0">Status</span>
+              <span className="po-col-item po-gap shrink-0">Item</span>
+              <span className="po-col-category po-gap shrink-0">Category</span>
+              <span className="po-col-qty po-gap shrink-0 text-right">QTY</span>
+              {access.canViewArtworkFields && <span className="po-col-version po-gap shrink-0">Version</span>}
+              {access.canViewArtworkFields && (
+                <span className="po-gap shrink-0" style={{ width: approvalColumnWidth, minWidth: approvalColumnWidth }}>
+                  Approval
+                </span>
+              )}
+              {access.canOpenArtworkModal && <span className="po-col-art po-gap-tight shrink-0 text-center">Art</span>}
+              <span className="po-col-notes-min po-gap flex-1">Notes</span>
+              <span className="po-col-handle po-gap shrink-0" />
             </div>
 
             {orderItems.length === 0 ? (
               <div className="px-4 py-3 text-xs text-foreground-subtle italic">No items yet</div>
             ) : (
               <DndContext
+                id={`order-items-${order.id}`}
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
@@ -360,6 +443,7 @@ export function OrderBlock({
                           version,
                         });
                       }}
+                      approvalColumnWidth={approvalColumnWidth}
                     />
                   ))}
                 </SortableContext>

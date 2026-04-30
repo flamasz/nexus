@@ -10,21 +10,21 @@ interface StatusConfig {
 export const statusConfig: Record<UploadStatus, StatusConfig> = {
   uploaded: {
     label: 'Uploaded',
-    bgColor: 'bg-info-subtle',
-    textColor: 'text-info',
-    borderColor: 'border-info/30',
+    bgColor: 'bg-sky-100 dark:bg-info-subtle',
+    textColor: 'text-sky-700 dark:text-info',
+    borderColor: 'border-sky-300 dark:border-info/30',
   },
   approved: {
     label: 'Approved',
-    bgColor: 'bg-success-subtle',
-    textColor: 'text-success',
-    borderColor: 'border-success/30',
+    bgColor: 'bg-green-100 dark:bg-success-subtle',
+    textColor: 'text-green-700 dark:text-success',
+    borderColor: 'border-green-300 dark:border-success/30',
   },
   rejected: {
     label: 'Rejected',
-    bgColor: 'bg-destructive-subtle',
-    textColor: 'text-destructive',
-    borderColor: 'border-destructive/30',
+    bgColor: 'bg-red-100 dark:bg-destructive-subtle',
+    textColor: 'text-red-700 dark:text-destructive',
+    borderColor: 'border-red-300 dark:border-destructive/30',
   },
 };
 

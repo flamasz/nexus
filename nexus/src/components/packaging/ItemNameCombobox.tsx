@@ -321,7 +321,7 @@ export function ItemNameCombobox({
                 top: dropdownPosition.top + 4,
                 left: dropdownPosition.left,
                 width: dropdownPosition.width,
-                zIndex: 9999,
+                zIndex: 10000,
               }}
             >
               <ul ref={listRef} className="flex-1 min-h-0 overflow-y-auto">

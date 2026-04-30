@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { UserAccess } from '@/lib/auth/permissions';
-import { deleteOrderItem, getVersionsForItemCategory, updateOrderItem, VersionWithStatus } from '@/app/actions/orders';
+import { deleteOrderItem, updateOrderItem } from '@/app/actions/orders';
 import { CategorySelector } from '@/components/packaging/CategorySelector';
 import { ItemNameCombobox } from '@/components/packaging/ItemNameCombobox';
 import { ItemStatusDropdown } from '@/components/packaging/ItemStatusDropdown';
@@ -14,6 +14,11 @@ import { Category, ItemName, ItemStatus, OrderItemWithDetails } from '@/types/da
 import { ItemOrderStatusDropdown } from './ItemOrderStatusDropdown';
 import { PriorityDropdown } from './PriorityDropdown';
 
+interface VersionWithStatus {
+  version: string;
+  status?: string;
+}
+
 interface OrderItemRowProps {
   access: UserAccess;
   orderItem: OrderItemWithDetails;
@@ -22,6 +27,7 @@ interface OrderItemRowProps {
   artworkStatus?: string;
   packagingItemId?: string;
   packagingItemStatus?: string;
+  approvalColumnWidth?: string;
   onOpenArtwork: (orderItem: OrderItemWithDetails) => void;
   onDelete: (id: string) => void;
   onChange: (updated: OrderItemWithDetails) => void;
@@ -44,6 +50,7 @@ export function OrderItemRow({
   categories,
   packagingItemId,
   packagingItemStatus,
+  approvalColumnWidth,
   onOpenArtwork,
   onDelete,
   onChange,
@@ -58,7 +65,10 @@ export function OrderItemRow({
   const [deleting, setDeleting] = useState(false);
   const [localNotesOverride, setLocalNotesOverride] = useState<string | null>(null);
   const [localQtyOverride, setLocalQtyOverride] = useState<string | null>(null);
-  const [localApprovalStatusOverride, setLocalApprovalStatusOverride] = useState<ItemStatus | null>(null);
+  const [localApprovalStatusOverride, setLocalApprovalStatusOverride] = useState<{
+    sourceKey: string;
+    status: ItemStatus;
+  } | null>(null);
   const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const qtyCursorRef = useRef<number | null>(null);
@@ -96,11 +106,37 @@ export function OrderItemRow({
     if (!orderItem.item_name_id || !orderItem.category_id) return;
 
     let cancelled = false;
-    getVersionsForItemCategory(orderItem.item_name_id, orderItem.category_id).then((v) => {
-      if (!cancelled) setVersions(v);
+    const controller = new AbortController();
+
+    async function loadVersions() {
+      const params = new URLSearchParams({
+        itemNameId: orderItem.item_name_id!,
+        categoryId: orderItem.category_id!,
+      });
+      const response = await fetch(`/api/order-item-versions?${params.toString()}`, {
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load versions (${response.status})`);
+      }
+
+      const { versions: nextVersions } = (await response.json()) as { versions: VersionWithStatus[] };
+
+      if (!cancelled) {
+        setVersions(nextVersions);
+      }
+    }
+
+    loadVersions().catch((error) => {
+      if (!cancelled && error?.name !== 'AbortError') {
+        console.error('Failed to load order item versions:', error);
+      }
     });
+
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [orderItem.item_name_id, orderItem.category_id]);
 
@@ -229,8 +265,11 @@ export function OrderItemRow({
     onDelete(orderItem.id);
   };
 
+  const approvalSourceKey = `${orderItem.id}|${packagingItemStatus ?? ''}|${orderItem.approval_status ?? ''}`;
   const effectiveApprovalStatus =
-    localApprovalStatusOverride ?? (packagingItemStatus as ItemStatus) ?? orderItem.approval_status ?? 'new';
+    localApprovalStatusOverride?.sourceKey === approvalSourceKey
+      ? localApprovalStatusOverride.status
+      : (packagingItemStatus as ItemStatus) ?? orderItem.approval_status ?? 'new';
   const approvalConfig = ITEM_STATUS_CONFIG[effectiveApprovalStatus];
   const artBtnColor = approvalConfig
     ? `${approvalConfig.bg} ${approvalConfig.text} ${approvalConfig.border}`
@@ -247,14 +286,14 @@ export function OrderItemRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center w-max min-w-full px-2 py-1.5 border-b border-border last:border-0 text-xs bg-surface-raised ${
+      className={`po-table-row group flex items-center w-max min-w-full border-b border-border last:border-0 text-xs bg-surface-raised ${
         isDragging ? 'shadow-lg rounded-lg border border-primary z-10' : ''
       } ${deleting ? 'opacity-50 pointer-events-none' : ''}`}
     >
       <span
         {...(canEditOrderFields ? attributes : {})}
         {...(canEditOrderFields ? listeners : {})}
-        className={`w-5 shrink-0 flex items-center justify-center ${
+        className={`po-col-handle shrink-0 flex items-center justify-center ${
           canEditOrderFields
             ? 'cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity text-foreground-subtle hover:text-foreground-muted'
             : 'opacity-0'
@@ -263,7 +302,7 @@ export function OrderItemRow({
         ⠿
       </span>
 
-      <div className={`w-24 shrink-0 ml-1.5 ${disableWrapper(!canEditOrderFields)}`}>
+      <div className={`po-col-priority po-gap-tight shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
         <PriorityDropdown
           priority={orderItem.priority ?? '2_standard'}
           onPriorityChange={async (p) => {
@@ -274,7 +313,7 @@ export function OrderItemRow({
         />
       </div>
 
-      <div className={`w-14 shrink-0 ml-1.5 ${disableWrapper(!canEditOrderFields)}`}>
+      <div className={`po-col-status po-gap shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
         <ItemOrderStatusDropdown
           status={orderItem.item_order_status}
           onStatusChange={async (s) => {
@@ -285,7 +324,7 @@ export function OrderItemRow({
         />
       </div>
 
-      <div className={`w-56 shrink-0 ml-1.5 ${disableWrapper(!canEditOrderFields)}`}>
+      <div className={`po-col-item po-gap shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
         <ItemNameCombobox
           itemNames={itemNames}
           selectedId={orderItem.item_name_id}
@@ -300,7 +339,7 @@ export function OrderItemRow({
         />
       </div>
 
-      <div className={`w-[8.4rem] shrink-0 ml-1.5 ${disableWrapper(!canEditOrderFields)}`}>
+      <div className={`po-col-category po-gap shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
         <CategorySelector
           categories={categories}
           selectedId={orderItem.category_id}
@@ -324,11 +363,11 @@ export function OrderItemRow({
         onKeyDown={handleQtyKeyDown}
         placeholder="QTY"
         readOnly={!canEditOrderFields}
-        className="w-[4.8rem] shrink-0 ml-1.5 border border-border rounded px-1.5 py-1 text-xs bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-ring text-right read-only:cursor-default read-only:opacity-70"
+        className="po-col-qty po-gap shrink-0 border border-border rounded text-xs bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-ring text-right read-only:cursor-default read-only:opacity-70"
       />
 
       {canViewArtworkFields && (
-        <div className={`w-20 shrink-0 ml-1.5 ${disableWrapper(!canEditArtworkFields)}`}>
+        <div className={`po-col-version po-gap shrink-0 ${disableWrapper(!canEditArtworkFields)}`}>
           <VersionCombobox
             versions={versions}
             selectedVersion={orderItem.version}
@@ -350,12 +389,15 @@ export function OrderItemRow({
       )}
 
       {canViewArtworkFields && (
-        <div className={`w-[5.5rem] shrink-0 ml-1.5 ${disableWrapper(!canEditArtworkFields)}`}>
+        <div
+          className={`po-gap shrink-0 ${disableWrapper(!canEditArtworkFields)}`}
+          style={approvalColumnWidth ? { width: approvalColumnWidth, minWidth: approvalColumnWidth } : undefined}
+        >
           <ItemStatusDropdown
             status={effectiveApprovalStatus}
             onStatusChange={async (s) => {
               if (!canEditArtworkFields) return;
-              setLocalApprovalStatusOverride(s);
+              setLocalApprovalStatusOverride({ sourceKey: approvalSourceKey, status: s });
               if (packagingItemId && onUpdatePackagingItemStatus) {
                 await onUpdatePackagingItemStatus(packagingItemId, s);
               } else {
@@ -371,7 +413,7 @@ export function OrderItemRow({
         <button
           onClick={() => onOpenArtwork(orderItem)}
           title={approvalConfig ? approvalConfig.label : 'No status'}
-          className={`shrink-0 ml-2 px-2 py-1 rounded text-xs font-medium border transition-colors ${artBtnColor} hover:opacity-80`}
+          className={`po-col-art po-gap-tight shrink-0 rounded text-xs font-medium border transition-colors ${artBtnColor} hover:opacity-80`}
         >
           Art
         </button>
@@ -383,13 +425,13 @@ export function OrderItemRow({
         onChange={(e) => handleNotesChange(e.target.value)}
         placeholder="Notes"
         readOnly={!canEditOrderFields}
-        className="flex-1 min-w-[200px] ml-1.5 border border-border rounded px-1.5 py-1 text-xs bg-surface text-foreground placeholder:text-foreground-subtle focus:outline-none focus:ring-1 focus:ring-ring read-only:cursor-default read-only:opacity-70"
+        className="po-col-notes-min po-gap flex-1 border border-border rounded text-xs bg-surface text-foreground placeholder:text-foreground-subtle focus:outline-none focus:ring-1 focus:ring-ring read-only:cursor-default read-only:opacity-70"
       />
 
       {canDeleteOrderItems ? (
         <button
           onClick={handleDelete}
-          className="shrink-0 ml-1.5 p-1 text-foreground-subtle hover:text-destructive transition-colors"
+          className="po-col-handle po-gap shrink-0 text-foreground-subtle hover:text-destructive transition-colors"
           aria-label="Remove item"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -397,7 +439,7 @@ export function OrderItemRow({
           </svg>
         </button>
       ) : (
-        <span className="w-5 shrink-0 ml-1.5" />
+        <span className="po-col-handle po-gap shrink-0" />
       )}
     </div>
   );

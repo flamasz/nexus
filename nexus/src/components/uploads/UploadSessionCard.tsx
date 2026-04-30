@@ -5,6 +5,7 @@ import { formatHSTShort } from '@/lib/utils';
 import { UploadSessionWithDetails, UploadStatus } from '@/types/database';
 import { FileList } from './FileList';
 import { StatusBadge } from './StatusBadge';
+import { UploadStatusDropdown } from './UploadStatusDropdown';
 
 interface UploadSessionCardProps {
   session: UploadSessionWithDetails;
@@ -107,10 +108,9 @@ export function UploadSessionCard({
     [session.id, onNotesChange]
   );
 
-  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleStatusChange = async (status: UploadStatus) => {
     if (!canEditStatus) return;
-    const newStatus = e.target.value as UploadStatus;
-    await onStatusChange(session.id, newStatus);
+    await onStatusChange(session.id, status);
   };
 
   const handleArchive = async () => {
@@ -137,27 +137,25 @@ export function UploadSessionCard({
   };
 
   return (
-    <div className={`bg-surface border border-border rounded-lg shadow-sm overflow-hidden ${session.archived ? 'opacity-60' : ''}`}>
-      <div className="p-4 border-b border-border bg-surface-raised">
+    <div className={`bg-surface border border-border rounded-lg shadow-sm ${session.archived ? 'opacity-60' : ''}`}>
+      <div className="p-4 border-b border-border bg-surface-raised rounded-t-lg">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <StatusBadge status={session.status} />
+              {canEditStatus ? (
+                <UploadStatusDropdown
+                  status={session.status}
+                  onStatusChange={handleStatusChange}
+                  variant="compact"
+                />
+              ) : (
+                <StatusBadge status={session.status} />
+              )}
               {session.archived && (
                 <span className="text-xs px-1.5 py-0.5 bg-surface-overlay text-foreground-muted rounded">
                   Archived
                 </span>
               )}
-              <select
-                value={session.status}
-                onChange={handleStatusChange}
-                disabled={!canEditStatus}
-                className="text-xs border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-70 disabled:cursor-default"
-              >
-                <option value="uploaded">Uploaded</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
             </div>
             <p className="text-sm text-foreground-muted">
               Uploaded by {session.uploader?.display_name || 'Unknown'} on{' '}

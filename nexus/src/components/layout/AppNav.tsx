@@ -15,7 +15,9 @@ import {
   Settings,
   HelpCircle,
   Menu,
+  Package,
 } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 type NavItem = {
   label: string;
@@ -35,6 +37,10 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
       { label: 'Analytics', href: '/analytics', icon: BarChart3 },
     ],
+  },
+  {
+    title: 'Catalog',
+    items: [{ label: 'Items', href: '/items', icon: Package }],
   },
   {
     title: 'Purchase Orders',
@@ -59,9 +65,16 @@ interface AppNavProps {
   collapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
   onMenuClick?: () => void;
+  onNavigateStart?: (href: string) => void;
 }
 
-export function AppNav({ user = null, collapsed = false, onCollapse, onMenuClick }: AppNavProps) {
+export function AppNav({
+  user = null,
+  collapsed = false,
+  onCollapse,
+  onMenuClick,
+  onNavigateStart,
+}: AppNavProps) {
   const pathname = usePathname();
   const access = resolveUserAccess(user);
   const isCollapsed = onCollapse ? collapsed : false;
@@ -135,6 +148,7 @@ export function AppNav({ user = null, collapsed = false, onCollapse, onMenuClick
                     <Link
                       href={item.href}
                       title={isCollapsed ? item.label : undefined}
+                      onClick={() => onNavigateStart?.(item.href)}
                       className={cn(
                         'w-full flex items-center py-2 px-3.5 rounded-xl text-sm group relative',
                         isActive
@@ -182,6 +196,11 @@ export function AppNav({ user = null, collapsed = false, onCollapse, onMenuClick
           </div>
         ))}
       </nav>
+
+      {/* Theme toggle */}
+      <div className="border-t border-sidebar-border p-2 shrink-0">
+        <ThemeToggle collapsed={isCollapsed} />
+      </div>
 
       {/* Logo */}
       <div className="border-t border-sidebar-border p-2 shrink-0">

@@ -77,6 +77,7 @@ export async function createItem(data: {
 
   revalidatePath('/');
   revalidatePath('/artwork');
+  revalidatePath('/orders');
   return item as ItemWithCategory;
 }
 
@@ -118,6 +119,7 @@ export async function updateItem(
 
   revalidatePath('/');
   revalidatePath('/artwork');
+  revalidatePath('/orders');
   return item as ItemWithCategory;
 }
 
@@ -171,4 +173,5 @@ export async function deleteItem(id: string): Promise<void> {
 
   revalidatePath('/');
   revalidatePath('/artwork');
+  revalidatePath('/orders');
 }

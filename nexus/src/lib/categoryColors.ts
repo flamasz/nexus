@@ -16,18 +16,18 @@ export const CATEGORY_COLORS: Record<
   CategoryColorKey,
   { bg: string; text: string; border: string }
 > = {
-  blue: { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30' },
-  red: { bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/30' },
-  green: { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
-  purple: { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30' },
-  amber: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
-  pink: { bg: 'bg-pink-500/15', text: 'text-pink-400', border: 'border-pink-500/30' },
-  teal: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/30' },
-  indigo: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30' },
-  emerald: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30' },
-  rose: { bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/30' },
-  cyan: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
-  orange: { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30' },
+  blue:    { bg: 'bg-blue-500/15',    text: 'text-blue-700 dark:text-blue-400',       border: 'border-blue-500/40 dark:border-blue-500/30' },
+  red:     { bg: 'bg-red-500/15',     text: 'text-red-700 dark:text-red-400',         border: 'border-red-500/40 dark:border-red-500/30' },
+  green:   { bg: 'bg-green-500/15',   text: 'text-green-700 dark:text-green-400',     border: 'border-green-500/40 dark:border-green-500/30' },
+  purple:  { bg: 'bg-purple-500/15',  text: 'text-purple-700 dark:text-purple-400',   border: 'border-purple-500/40 dark:border-purple-500/30' },
+  amber:   { bg: 'bg-amber-500/15',   text: 'text-amber-700 dark:text-amber-400',     border: 'border-amber-500/40 dark:border-amber-500/30' },
+  pink:    { bg: 'bg-pink-500/15',    text: 'text-pink-700 dark:text-pink-400',       border: 'border-pink-500/40 dark:border-pink-500/30' },
+  teal:    { bg: 'bg-teal-500/15',    text: 'text-teal-700 dark:text-teal-400',       border: 'border-teal-500/40 dark:border-teal-500/30' },
+  indigo:  { bg: 'bg-indigo-500/15',  text: 'text-indigo-700 dark:text-indigo-400',   border: 'border-indigo-500/40 dark:border-indigo-500/30' },
+  emerald: { bg: 'bg-emerald-500/15', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-500/40 dark:border-emerald-500/30' },
+  rose:    { bg: 'bg-rose-500/15',    text: 'text-rose-700 dark:text-rose-400',       border: 'border-rose-500/40 dark:border-rose-500/30' },
+  cyan:    { bg: 'bg-cyan-500/15',    text: 'text-cyan-700 dark:text-cyan-400',       border: 'border-cyan-500/40 dark:border-cyan-500/30' },
+  orange:  { bg: 'bg-orange-500/15',  text: 'text-orange-700 dark:text-orange-400',   border: 'border-orange-500/40 dark:border-orange-500/30' },
 };
 
 export const COLOR_KEYS = Object.keys(CATEGORY_COLORS) as CategoryColorKey[];
