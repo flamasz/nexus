@@ -4,6 +4,8 @@ export type UploadStatus = "uploaded" | "approved" | "rejected";
 export type ItemStatus = "new" | "in_progress" | "approved" | "superceded";
 export type ItemOrderStatus = "new" | "final" | "cancel";
 export type ItemPriority = "1_critical" | "2_standard" | "3_low";
+export type InvoiceParty = "supplier" | "manufacturer";
+export type InvoiceStatus = "draft" | "final" | "paid";
 export type DesignerAccessLevel = "disabled" | "view" | "edit";
 export type BusinessCentralSyncStatus =
   | "never_synced"
@@ -50,6 +52,11 @@ export interface PermissionOverrides {
   deleteOrderItems?: boolean;
   archiveOrders?: boolean;
   deleteOrders?: boolean;
+  viewInvoices?: boolean;
+  createInvoices?: boolean;
+  editInvoices?: boolean;
+  deleteInvoices?: boolean;
+  assignInvoices?: boolean;
   viewDesignerFields?: boolean;
   editDesignerFields?: boolean;
   openArtworkModal?: boolean;
@@ -343,6 +350,16 @@ export interface OrderItem {
   item_order_status: ItemOrderStatus;
   priority: ItemPriority;
   sort_order: number;
+  supplier_invoice_id: string | null;
+  manufacturer_invoice_id: string | null;
+  overrun_qty: number | null;
+  accept_qty: number | null;
+  supplier_inv_qty: number | null;
+  manufacturer_inv_qty: number | null;
+  overrun_qty_manual: boolean;
+  accept_qty_manual: boolean;
+  supplier_inv_qty_manual: boolean;
+  manufacturer_inv_qty_manual: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -354,6 +371,61 @@ export interface OrderItemWithDetails extends OrderItem {
 
 export interface PurchaseOrderWithItems extends PurchaseOrder {
   order_items: OrderItemWithDetails[];
+}
+
+export interface PurchaseInvoice {
+  id: string;
+  organization_id: string;
+  invoice_party: InvoiceParty;
+  counterparty_name: string | null;
+  invoice_number: string;
+  invoice_date: string | null;
+  invoice_due_date: string | null;
+  status: InvoiceStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceOption {
+  id: string;
+  invoice_party: InvoiceParty;
+  invoice_number: string;
+  counterparty_name: string | null;
+  status: InvoiceStatus;
+  invoice_date: string | null;
+  invoice_due_date: string | null;
+  created_at: string;
+}
+
+export interface InvoiceAssignedOrderItem extends OrderItemWithDetails {
+  order_number: string;
+  order_date: string;
+}
+
+export interface PurchaseInvoiceWithAssignedItems extends PurchaseInvoice {
+  assigned_items: InvoiceAssignedOrderItem[];
+}
+
+export interface EligibleInvoiceOrderItem extends OrderItemWithDetails {
+  order_number: string;
+  order_date: string;
+}
+
+export interface InvoiceWorkspaceData {
+  invoices: PurchaseInvoiceWithAssignedItems[];
+  eligible_items: Record<InvoiceParty, EligibleInvoiceOrderItem[]>;
+}
+
+export interface OrderItemInvoicePatch {
+  orderItemId: string;
+  supplier_invoice_id: string | null;
+  manufacturer_invoice_id: string | null;
+  supplier_inv_qty: number | null;
+  manufacturer_inv_qty: number | null;
+  supplier_inv_qty_manual: boolean;
+  manufacturer_inv_qty_manual: boolean;
+  updated_at: string;
 }
 
 export interface Database {
@@ -483,6 +555,16 @@ export interface Database {
           | "item_order_status"
           | "priority"
           | "sort_order"
+          | "supplier_invoice_id"
+          | "manufacturer_invoice_id"
+          | "overrun_qty"
+          | "accept_qty"
+          | "supplier_inv_qty"
+          | "manufacturer_inv_qty"
+          | "overrun_qty_manual"
+          | "accept_qty_manual"
+          | "supplier_inv_qty_manual"
+          | "manufacturer_inv_qty_manual"
         > & {
           id?: string;
           created_at?: string;
@@ -490,8 +572,31 @@ export interface Database {
           item_order_status?: ItemOrderStatus;
           priority?: ItemPriority;
           sort_order?: number;
+          supplier_invoice_id?: string | null;
+          manufacturer_invoice_id?: string | null;
+          overrun_qty?: number | null;
+          accept_qty?: number | null;
+          supplier_inv_qty?: number | null;
+          manufacturer_inv_qty?: number | null;
+          overrun_qty_manual?: boolean;
+          accept_qty_manual?: boolean;
+          supplier_inv_qty_manual?: boolean;
+          manufacturer_inv_qty_manual?: boolean;
         };
         Update: Partial<Omit<OrderItem, "id">>;
+      };
+      purchase_invoices: {
+        Row: PurchaseInvoice;
+        Insert: Omit<
+          PurchaseInvoice,
+          "id" | "created_at" | "updated_at" | "status"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          status?: InvoiceStatus;
+        };
+        Update: Partial<Omit<PurchaseInvoice, "id">>;
       };
 
       business_central_connections: {

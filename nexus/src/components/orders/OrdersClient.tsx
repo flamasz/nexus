@@ -11,6 +11,7 @@ import {
   ItemName,
   Category,
   User,
+  InvoiceOption,
 } from '@/types/database';
 import { createClient } from '@/lib/supabase/client';
 import { createOrder, createOrderItem } from '@/app/actions/orders';
@@ -21,6 +22,7 @@ interface OrdersClientProps {
   initialOrders: PurchaseOrderWithItems[];
   initialItemNames: ItemName[];
   initialCategories: Category[];
+  initialInvoiceOptions: InvoiceOption[];
 }
 
 export function OrdersClient({
@@ -28,11 +30,13 @@ export function OrdersClient({
   initialOrders,
   initialItemNames,
   initialCategories,
+  initialInvoiceOptions,
 }: OrdersClientProps) {
   const [user] = useState<User | null>(initialUser);
   const [orders, setOrders] = useState<PurchaseOrderWithItems[]>(initialOrders);
   const [itemNames] = useState<ItemName[]>(initialItemNames);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [invoiceOptions, setInvoiceOptions] = useState<InvoiceOption[]>(initialInvoiceOptions);
   const [artworkStatusMap, setArtworkStatusMap] = useState<Record<string, string>>({});
   const [itemStatusMap, setItemStatusMap] = useState<Record<string, string>>({});
   const [itemsIdLookup, setItemsIdLookup] = useState<Record<string, string>>({});
@@ -304,6 +308,8 @@ export function OrdersClient({
                   itemNames={itemNames}
                   categories={categories}
                   access={access}
+                  invoiceOptions={invoiceOptions}
+                  onInvoiceOptionsChange={setInvoiceOptions}
                   artworkStatusMap={artworkStatusMap}
                   itemStatusMap={itemStatusMap}
                   itemsIdLookup={itemsIdLookup}

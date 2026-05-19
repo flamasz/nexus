@@ -44,3 +44,10 @@ next-env.d.ts
 
 # git worktrees
 .worktrees/
+
+# local agent/runtime state
+.omc/
+.pi/
+
+# supabase local CLI cache
+supabase/.temp/

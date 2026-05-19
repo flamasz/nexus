@@ -143,6 +143,7 @@ export async function updateUserAccess(
   revalidatePath('/admin');
   revalidatePath('/orders');
   revalidatePath('/artwork');
+  revalidatePath('/invoices');
 
   return data as User;
 }

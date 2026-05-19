@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { getAnchoredDropdownPosition } from '@/lib/dropdownPosition';
 import { ITEM_STATUS_CONFIG } from '@/lib/itemStatus';
 import { ItemStatus } from '@/types/database';
 
@@ -32,7 +33,7 @@ export function VersionCombobox({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newVersionValue, setNewVersionValue] = useState('');
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 240 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -46,12 +47,7 @@ export function VersionCombobox({
   const updatePosition = useCallback(() => {
     const el = inputRef.current || containerRef.current;
     if (el) {
-      const rect = el.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom,
-        left: rect.left,
-        width: Math.max(rect.width, 180),
-      });
+      setDropdownPosition(getAnchoredDropdownPosition(el, { minWidth: 180, maxHeight: 240, minUsableHeight: 140 }));
     }
   }, []);
 
@@ -227,11 +223,12 @@ export function VersionCombobox({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed bg-surface-overlay border border-border rounded-md shadow-lg max-h-60 overflow-hidden"
+          className="fixed bg-surface-overlay border border-border rounded-md shadow-lg overflow-hidden"
           style={{
-            top: dropdownPosition.top + 4,
+            top: dropdownPosition.top,
             left: dropdownPosition.left,
             width: dropdownPosition.width,
+            maxHeight: dropdownPosition.maxHeight,
             zIndex: 10000,
           }}
         >

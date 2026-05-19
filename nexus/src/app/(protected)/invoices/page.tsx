@@ -1,14 +1,52 @@
-export default function InvoicesPage() {
-  return (
-    <main className="flex-1 flex items-center justify-center bg-background">
-      <div className="text-center">
-        <svg className="w-16 h-16 mx-auto text-foreground-subtle mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <h1 className="text-xl lg:text-2xl font-bold text-foreground mb-2">Invoices</h1>
-        <p className="text-foreground-muted">Coming soon</p>
-      </div>
-    </main>
-  );
+import { getInvoiceWorkspaceData } from '@/app/actions/invoices';
+import { getCurrentUser } from '@/app/actions/users';
+import { InvoicesClient } from '@/components/invoices/InvoicesClient';
+import { resolveUserAccess } from '@/lib/auth/permissions';
+import { InvoiceWorkspaceData } from '@/types/database';
+
+export const dynamic = 'force-dynamic';
+
+const EMPTY_DATA: InvoiceWorkspaceData = {
+  invoices: [],
+  eligible_items: {
+    supplier: [],
+    manufacturer: [],
+  },
+};
+
+export default async function InvoicesPage() {
+  const user = await getCurrentUser();
+  const access = resolveUserAccess(user);
+  let data = EMPTY_DATA;
+
+  if (user?.organization_id && access.canViewInvoices) {
+    try {
+      data = await getInvoiceWorkspaceData();
+    } catch (error) {
+      console.error('Failed to load invoices:', error);
+    }
+  }
+
+  if (!user) {
+    return (
+      <main className="flex flex-1 items-center justify-center bg-background">
+        <div className="text-foreground-muted">Not authenticated</div>
+      </main>
+    );
+  }
+
+  if (!user.organization_id) {
+    return (
+      <main className="flex flex-1 items-center justify-center bg-background">
+        <div className="max-w-sm text-center">
+          <h1 className="text-lg font-semibold text-foreground">No organization assigned</h1>
+          <p className="mt-2 text-sm text-foreground-muted">
+            Your account is not linked to an organization. Ask your administrator to assign you to one before using invoices.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  return <InvoicesClient initialData={data} access={access} />;
 }

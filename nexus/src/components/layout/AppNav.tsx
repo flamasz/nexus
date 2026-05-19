@@ -84,6 +84,9 @@ export function AppNav({
       if (item.href === '/artwork') {
         return canAccessArtworkWorkspace(access);
       }
+      if (item.href === '/invoices') {
+        return access.canViewInvoices;
+      }
 
       return true;
     }),

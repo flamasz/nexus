@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { getAnchoredDropdownPosition } from '@/lib/dropdownPosition';
 import { ItemName } from '@/types/database';
 
 interface ItemNameComboboxProps {
@@ -31,7 +32,7 @@ export function ItemNameCombobox({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 384 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -52,12 +53,7 @@ export function ItemNameCombobox({
   const updatePosition = useCallback(() => {
     const el = inputRef.current || containerRef.current;
     if (el) {
-      const rect = el.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom,
-        left: rect.left,
-        width: Math.max(rect.width, 200),
-      });
+      setDropdownPosition(getAnchoredDropdownPosition(el, { minWidth: 200 }));
     }
   }, []);
 
@@ -316,11 +312,13 @@ export function ItemNameCombobox({
           {isOpen && typeof document !== 'undefined' && createPortal(
             <div 
               ref={dropdownRef}
-              className="fixed bg-surface-overlay border border-border rounded-md shadow-lg max-h-96 min-h-64 flex flex-col overflow-hidden"
+              className="fixed bg-surface-overlay border border-border rounded-md shadow-lg flex flex-col overflow-hidden"
               style={{
-                top: dropdownPosition.top + 4,
+                top: dropdownPosition.top,
                 left: dropdownPosition.left,
                 width: dropdownPosition.width,
+                maxHeight: dropdownPosition.maxHeight,
+                minHeight: Math.min(256, dropdownPosition.maxHeight),
                 zIndex: 10000,
               }}
             >

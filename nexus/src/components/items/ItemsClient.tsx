@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  FileSpreadsheet,
   GitCompareArrows,
   Link2Off,
   Loader2,
@@ -56,6 +57,8 @@ import {
   SyncStatus,
 } from "@/types/businessCentralItems";
 import { User } from "@/types/database";
+import { Gs1ImportModal } from "@/components/gs1/Gs1ImportModal";
+import { Gs1FieldsPanel } from "@/components/gs1/Gs1FieldsPanel";
 import {
   CreateBusinessCentralItemDraft,
   EditableDetailField,
@@ -74,7 +77,7 @@ interface ItemsClientProps {
 }
 
 type BadgeVariant = React.ComponentProps<typeof Badge>["variant"];
-type TabKey = "bc" | "nexus" | "retailer" | "audit";
+type TabKey = "bc" | "nexus" | "retailer" | "audit" | "gs1";
 type ActionKey = "sync" | "fullSync" | "save" | "push" | "create" | "delete" | "verify";
 type ItemSortKey = "number" | "lastModified";
 
@@ -158,6 +161,7 @@ export function ItemsClient({
   const [isItemsSidebarCollapsed, setIsItemsSidebarCollapsed] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [gs1ImportOpen, setGs1ImportOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<ActionKey | null>(null);
@@ -386,6 +390,17 @@ export function ItemsClient({
             <RotateCw className={cn("size-4", pendingAction === "fullSync" && "animate-spin")} />
             {pendingAction === "fullSync" ? "Resyncing…" : "Full resync"}
           </Button>
+          {access.canManageCatalog && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setGs1ImportOpen(true)}
+              title="Import products from a GS1 Data Hub Excel export"
+            >
+              <FileSpreadsheet className="size-4" />
+              Import GS1 Excel
+            </Button>
+          )}
           <Button
             size="sm"
             disabled={!canEdit || !baseCanRunSync || isPending}
@@ -396,6 +411,8 @@ export function ItemsClient({
           </Button>
         </div>
       </header>
+
+      <Gs1ImportModal open={gs1ImportOpen} onOpenChange={setGs1ImportOpen} />
 
       {actionError && (
         <div className="border-b border-border bg-destructive-subtle px-5 py-2 text-sm text-destructive">
@@ -928,6 +945,7 @@ function DetailPanel({
     { key: "nexus", label: "Nexus fields" },
     { key: "retailer", label: "Retailer / pallet" },
     { key: "audit", label: "Sync & audit" },
+    { key: "gs1", label: "GS1" },
   ];
 
   const hasInvalidValues = getValidationErrors(entry).length > 0;
@@ -1065,6 +1083,9 @@ function DetailPanel({
             hasConflict={hasConflict}
             validationErrors={getValidationErrors(entry)}
           />
+        )}
+        {tab === "gs1" && (
+          <Gs1FieldsPanel bcItemId={item.id} canEdit={canEdit} />
         )}
       </div>
     </div>

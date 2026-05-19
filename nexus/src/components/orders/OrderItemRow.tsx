@@ -1,18 +1,39 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { UserAccess } from '@/lib/auth/permissions';
 import { deleteOrderItem, updateOrderItem } from '@/app/actions/orders';
+import {
+  assignInvoiceToOrderItem,
+  createInvoice,
+  getInvoiceWorkspaceData,
+  unassignInvoiceFromOrderItem,
+} from '@/app/actions/invoices';
+import { PurchaseInvoiceEditModal } from '@/components/invoices/InvoicesClient';
 import { CategorySelector } from '@/components/packaging/CategorySelector';
 import { ItemNameCombobox } from '@/components/packaging/ItemNameCombobox';
 import { ItemStatusDropdown } from '@/components/packaging/ItemStatusDropdown';
 import { VersionCombobox } from '@/components/packaging/VersionCombobox';
 import { ITEM_STATUS_CONFIG } from '@/lib/itemStatus';
-import { Category, ItemName, ItemStatus, OrderItemWithDetails } from '@/types/database';
+import { getAnchoredDropdownPosition } from '@/lib/dropdownPosition';
+import {
+  Category,
+  InvoiceOption,
+  InvoiceParty,
+  EligibleInvoiceOrderItem,
+  ItemName,
+  ItemStatus,
+  OrderItemInvoicePatch,
+  OrderItemWithDetails,
+  PurchaseInvoice,
+  PurchaseInvoiceWithAssignedItems,
+} from '@/types/database';
 import { ItemOrderStatusDropdown } from './ItemOrderStatusDropdown';
 import { PriorityDropdown } from './PriorityDropdown';
+import { calculateOverrunPercent } from '@/lib/orderItemQuantityDefaults';
 
 interface VersionWithStatus {
   version: string;
@@ -24,6 +45,8 @@ interface OrderItemRowProps {
   orderItem: OrderItemWithDetails;
   itemNames: ItemName[];
   categories: Category[];
+  invoiceOptions: InvoiceOption[];
+  onInvoiceOptionsChange: (options: InvoiceOption[]) => void;
   artworkStatus?: string;
   packagingItemId?: string;
   packagingItemStatus?: string;
@@ -31,12 +54,450 @@ interface OrderItemRowProps {
   onOpenArtwork: (orderItem: OrderItemWithDetails) => void;
   onDelete: (id: string) => void;
   onChange: (updated: OrderItemWithDetails) => void;
+  onInvoicePatch: (patch: OrderItemInvoicePatch) => void;
   onCreateItemName: (name: string) => Promise<ItemName>;
   onUpdateItemName: (id: string, name: string) => Promise<ItemName>;
   onCreateCategory: (prefillName?: string) => void;
   onEditCategory?: (category: Category) => void;
   onUpdatePackagingItemStatus?: (itemId: string, status: ItemStatus) => Promise<void>;
   onCreatePackagingItem?: (itemNameId: string, categoryId: string, version: string) => Promise<void>;
+}
+
+function invoiceLabel(invoice: InvoiceOption | undefined) {
+  if (!invoice) return '—';
+  return [invoice.invoice_number, invoice.counterparty_name].filter(Boolean).join(' · ');
+}
+
+function invoiceFieldLabel(invoice: InvoiceOption | undefined) {
+  return invoice?.invoice_number ?? '—';
+}
+
+function EditIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+      />
+    </svg>
+  );
+}
+
+function formatQuantity(value: number | null) {
+  return value === null ? '' : value.toLocaleString();
+}
+
+function posToDigitIndex(str: string, pos: number) {
+  let digits = 0;
+  for (let i = 0; i < pos; i++) {
+    if (str[i] !== ',') digits++;
+  }
+  return digits;
+}
+
+function digitIndexToPos(str: string, digitIdx: number) {
+  let digits = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] !== ',') {
+      if (digits === digitIdx) return i;
+      digits++;
+    }
+  }
+  return str.length;
+}
+
+function toInvoiceOption(invoice: PurchaseInvoice): InvoiceOption {
+  return {
+    id: invoice.id,
+    invoice_party: invoice.invoice_party,
+    invoice_number: invoice.invoice_number,
+    counterparty_name: invoice.counterparty_name,
+    status: invoice.status,
+    invoice_date: invoice.invoice_date,
+    invoice_due_date: invoice.invoice_due_date,
+    created_at: invoice.created_at,
+  };
+}
+
+function sortInvoiceOptionsNewestFirst(options: InvoiceOption[]) {
+  return [...options].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+function CompactQuantityInput({
+  value,
+  disabled,
+  className = 'po-col-qty',
+  onCommit,
+}: {
+  value: number | null;
+  disabled: boolean;
+  className?: string;
+  onCommit: (value: number | null) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(formatQuantity(value));
+  const [pending, setPending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cursorRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setDraft(formatQuantity(value));
+  }, [value]);
+
+  useEffect(() => {
+    if (cursorRef.current !== null && inputRef.current && document.activeElement === inputRef.current) {
+      const pos = cursorRef.current;
+      inputRef.current.setSelectionRange(pos, pos);
+      cursorRef.current = null;
+    }
+  }, [draft]);
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newRaw = event.target.value.replace(/[^0-9]/g, '');
+    const formatted = newRaw ? parseInt(newRaw).toLocaleString() : '';
+    const cursorInNew = event.target.selectionStart ?? 0;
+    const digitsBeforeCursor = posToDigitIndex(event.target.value, cursorInNew);
+    cursorRef.current = digitIndexToPos(formatted, digitsBeforeCursor);
+    setDraft(formatted);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur();
+      return;
+    }
+
+    const input = event.currentTarget;
+    const pos = input.selectionStart ?? 0;
+
+    if (event.key === 'ArrowLeft' && pos > 0 && draft[pos - 1] === ',') {
+      event.preventDefault();
+      input.setSelectionRange(pos - 1, pos - 1);
+      return;
+    }
+    if (event.key === 'ArrowRight' && pos < draft.length && draft[pos] === ',') {
+      event.preventDefault();
+      input.setSelectionRange(pos + 1, pos + 1);
+      return;
+    }
+
+    if (event.key === 'Backspace' && pos > 0 && draft[pos - 1] === ',') {
+      event.preventDefault();
+      const digitIdx = posToDigitIndex(draft, pos - 1);
+      const raw = draft.replace(/[^0-9]/g, '');
+      const newRaw = raw.slice(0, digitIdx - 1) + raw.slice(digitIdx);
+      const formatted = newRaw ? parseInt(newRaw).toLocaleString() : '';
+      cursorRef.current = digitIndexToPos(formatted, digitIdx - 1);
+      setDraft(formatted);
+      return;
+    }
+
+    if (event.key === 'Delete' && pos < draft.length && draft[pos] === ',') {
+      event.preventDefault();
+      const digitIdx = posToDigitIndex(draft, pos);
+      const raw = draft.replace(/[^0-9]/g, '');
+      const newRaw = raw.slice(0, digitIdx) + raw.slice(digitIdx + 1);
+      const formatted = newRaw ? parseInt(newRaw).toLocaleString() : '';
+      cursorRef.current = digitIndexToPos(formatted, digitIdx);
+      setDraft(formatted);
+    }
+  };
+
+  const handleCommit = async () => {
+    const raw = draft.replace(/[^0-9]/g, '');
+    const next = raw ? parseInt(raw) : null;
+    if (next === value) return;
+    setPending(true);
+    try {
+      await onCommit(next);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      inputMode="numeric"
+      value={draft}
+      onChange={handleChange}
+      onBlur={handleCommit}
+      onKeyDown={handleKeyDown}
+      placeholder="—"
+      readOnly={disabled}
+      disabled={pending}
+      className={`${className} po-gap shrink-0 border border-border rounded text-xs bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-ring text-right read-only:cursor-default read-only:opacity-70 disabled:opacity-50`}
+    />
+  );
+}
+
+function InvoiceAssignmentCell({
+  party,
+  orderItem,
+  access,
+  invoiceOptions,
+  onInvoicePatch,
+  onInvoiceOptionsChange,
+}: {
+  party: InvoiceParty;
+  orderItem: OrderItemWithDetails;
+  access: UserAccess;
+  invoiceOptions: InvoiceOption[];
+  onInvoicePatch: (patch: OrderItemInvoicePatch) => void;
+  onInvoiceOptionsChange: (options: InvoiceOption[]) => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoiceWithAssignedItems | null>(null);
+  const [editingEligibleItems, setEditingEligibleItems] = useState<EligibleInvoiceOrderItem[]>([]);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 192, maxHeight: 320 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const invoiceId =
+    party === 'supplier' ? orderItem.supplier_invoice_id : orderItem.manufacturer_invoice_id;
+  const [optimisticInvoiceId, setOptimisticInvoiceId] = useState<string | null>(invoiceId);
+  const partyOptions = sortInvoiceOptionsNewestFirst(
+    invoiceOptions.filter((option) => option.invoice_party === party)
+  );
+  const selectedInvoice = partyOptions.find((option) => option.id === optimisticInvoiceId);
+  const canAssign = access.canViewInvoices && access.canAssignInvoices;
+  const filteredOptions = partyOptions.filter((option) =>
+    invoiceLabel(option).toLowerCase().includes(search.toLowerCase())
+  );
+  const showCreate =
+    search.trim().length > 0 &&
+    !partyOptions.some((option) => option.invoice_number.toLowerCase() === search.trim().toLowerCase());
+
+  const updatePosition = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!buttonRef.current || !rect) return;
+
+    setDropdownPosition(getAnchoredDropdownPosition(buttonRef.current, { minWidth: 192, maxHeight: 320 }));
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    updatePosition();
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(target))
+      ) {
+        setOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    setOptimisticInvoiceId(invoiceId);
+  }, [invoiceId]);
+
+  if (!access.canViewInvoices) {
+    return null;
+  }
+
+  if (!canAssign) {
+    return (
+      <div
+        className="po-col-invoice po-gap shrink-0 truncate rounded border border-border bg-surface px-2 py-1 text-xs text-foreground-muted"
+        title={invoiceLabel(selectedInvoice)}
+      >
+        {invoiceFieldLabel(selectedInvoice)}
+      </div>
+    );
+  }
+
+  const assign = async (nextInvoiceId: string | null) => {
+    const previousInvoiceId = optimisticInvoiceId;
+    setOptimisticInvoiceId(nextInvoiceId);
+    setOpen(false);
+    setSearch('');
+    setPending(true);
+    try {
+      const patch = nextInvoiceId
+        ? await assignInvoiceToOrderItem(orderItem.id, nextInvoiceId, party)
+        : await unassignInvoiceFromOrderItem(orderItem.id, party);
+      onInvoicePatch(patch);
+    } catch (error) {
+      setOptimisticInvoiceId(previousInvoiceId);
+      console.error('Failed to update invoice assignment:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update invoice assignment');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const loadInvoiceEditor = async (invoiceIdToOpen: string) => {
+    setPending(true);
+    try {
+      const workspace = await getInvoiceWorkspaceData();
+      onInvoiceOptionsChange(sortInvoiceOptionsNewestFirst(workspace.invoices.map(toInvoiceOption)));
+      const invoice = workspace.invoices.find((item) => item.id === invoiceIdToOpen);
+      if (!invoice) {
+        throw new Error('Invoice record was not found');
+      }
+      setEditingInvoice(invoice);
+      setEditingEligibleItems(workspace.eligible_items[invoice.invoice_party]);
+      setOpen(false);
+      setSearch('');
+    } catch (error) {
+      console.error('Failed to load invoice editor:', error);
+      alert(error instanceof Error ? error.message : 'Failed to load invoice editor');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const refreshEditingInvoice = async () => {
+    if (!editingInvoice) return;
+    const workspace = await getInvoiceWorkspaceData();
+    onInvoiceOptionsChange(sortInvoiceOptionsNewestFirst(workspace.invoices.map(toInvoiceOption)));
+    const invoice = workspace.invoices.find((item) => item.id === editingInvoice.id);
+    if (!invoice) {
+      setEditingInvoice(null);
+      setEditingEligibleItems([]);
+      return;
+    }
+    setEditingInvoice(invoice);
+    setEditingEligibleItems(workspace.eligible_items[invoice.invoice_party]);
+  };
+
+  const createAndAssign = async () => {
+    const invoiceNumber = search.trim();
+    if (!invoiceNumber) return;
+    setPending(true);
+    try {
+      const invoice = await createInvoice({
+        invoice_party: party,
+        invoice_number: invoiceNumber,
+      });
+      const option = toInvoiceOption(invoice);
+      onInvoiceOptionsChange(sortInvoiceOptionsNewestFirst([...invoiceOptions, option]));
+      const patch = await assignInvoiceToOrderItem(orderItem.id, option.id, party);
+      onInvoicePatch(patch);
+      setOpen(false);
+      setSearch('');
+    } catch (error) {
+      console.error('Failed to create invoice:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create invoice');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="po-col-invoice po-gap relative shrink-0">
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          if (!open) updatePosition();
+          setOpen((value) => !value);
+          setSearch('');
+        }}
+        className="w-full truncate rounded border border-border bg-surface px-2 py-1 text-left text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+        title={invoiceLabel(selectedInvoice)}
+      >
+        {invoiceFieldLabel(selectedInvoice)}
+      </button>
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed flex flex-col overflow-hidden rounded-lg border border-border bg-surface-overlay p-2 shadow-lg"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width,
+            maxHeight: dropdownPosition.maxHeight,
+            zIndex: 10000,
+          }}
+        >
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            autoFocus
+            placeholder={`Search ${party} invoices`}
+            className="mb-2 w-full rounded border border-border bg-surface px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => assign(null)}
+              className="block w-full rounded px-2 py-1.5 text-left text-xs text-foreground-muted hover:bg-surface-raised"
+            >
+              No invoice
+            </button>
+            {filteredOptions.map((option) => (
+              <div key={option.id} className="group flex items-center gap-1 rounded hover:bg-surface-raised">
+                <button
+                  type="button"
+                  onClick={() => assign(option.id)}
+                  className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-xs text-foreground"
+                >
+                  {invoiceLabel(option)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loadInvoiceEditor(option.id)}
+                  className="rounded px-1 text-foreground-muted opacity-0 hover:text-foreground group-hover:opacity-100"
+                  title="Edit invoice"
+                  aria-label={`Edit invoice ${option.invoice_number}`}
+                >
+                  <EditIcon />
+                </button>
+              </div>
+            ))}
+            {showCreate && (
+              <button
+                type="button"
+                onClick={createAndAssign}
+                className="mt-1 block w-full rounded border border-dashed border-border px-2 py-1.5 text-left text-xs text-primary hover:bg-primary-subtle"
+              >
+                + Create “{search.trim()}”
+              </button>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+      {editingInvoice && (
+        <PurchaseInvoiceEditModal
+          invoice={editingInvoice}
+          eligibleItems={editingEligibleItems}
+          access={access}
+          onClose={() => setEditingInvoice(null)}
+          onRefresh={refreshEditingInvoice}
+        />
+      )}
+    </div>
+  );
 }
 
 function disableWrapper(disabled: boolean) {
@@ -48,12 +509,15 @@ export function OrderItemRow({
   orderItem,
   itemNames,
   categories,
+  invoiceOptions,
+  onInvoiceOptionsChange,
   packagingItemId,
   packagingItemStatus,
   approvalColumnWidth,
   onOpenArtwork,
   onDelete,
   onChange,
+  onInvoicePatch,
   onCreateItemName,
   onUpdateItemName,
   onCreateCategory,
@@ -167,25 +631,6 @@ export function OrderItemRow({
       qtyCursorRef.current = null;
     }
   }, [localQty]);
-
-  const posToDigitIndex = (str: string, pos: number) => {
-    let digits = 0;
-    for (let i = 0; i < pos; i++) {
-      if (str[i] !== ',') digits++;
-    }
-    return digits;
-  };
-
-  const digitIndexToPos = (str: string, digitIdx: number) => {
-    let digits = 0;
-    for (let i = 0; i < str.length; i++) {
-      if (str[i] !== ',') {
-        if (digits === digitIdx) return i;
-        digits++;
-      }
-    }
-    return str.length;
-  };
 
   const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canEditOrderFields) return;
@@ -302,7 +747,7 @@ export function OrderItemRow({
         ⠿
       </span>
 
-      <div className={`po-col-priority po-gap-tight shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
+      <div className={`po-col-priority po-gap shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
         <PriorityDropdown
           priority={orderItem.priority ?? '2_standard'}
           onPriorityChange={async (p) => {
@@ -366,6 +811,25 @@ export function OrderItemRow({
         className="po-col-qty po-gap shrink-0 border border-border rounded text-xs bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-ring text-right read-only:cursor-default read-only:opacity-70"
       />
 
+      <CompactQuantityInput
+        value={orderItem.overrun_qty}
+        disabled={!canEditOrderFields}
+        onCommit={async (value) => update({ overrun_qty: value })}
+      />
+
+      <div className="po-col-overrun-percent po-gap-tight shrink-0 text-right text-xs text-foreground-muted">
+        {(() => {
+          const percent = calculateOverrunPercent(orderItem.order_qty, orderItem.overrun_qty);
+          return percent === null ? '—' : `${percent.toFixed(1)}%`;
+        })()}
+      </div>
+
+      <CompactQuantityInput
+        value={orderItem.accept_qty}
+        disabled={!canEditOrderFields}
+        onCommit={async (value) => update({ accept_qty: value })}
+      />
+
       {canViewArtworkFields && (
         <div className={`po-col-version po-gap shrink-0 ${disableWrapper(!canEditArtworkFields)}`}>
           <VersionCombobox
@@ -390,7 +854,7 @@ export function OrderItemRow({
 
       {canViewArtworkFields && (
         <div
-          className={`po-gap shrink-0 ${disableWrapper(!canEditArtworkFields)}`}
+          className={`po-gap flex shrink-0 justify-start ${disableWrapper(!canEditArtworkFields)}`}
           style={approvalColumnWidth ? { width: approvalColumnWidth, minWidth: approvalColumnWidth } : undefined}
         >
           <ItemStatusDropdown
@@ -413,11 +877,29 @@ export function OrderItemRow({
         <button
           onClick={() => onOpenArtwork(orderItem)}
           title={approvalConfig ? approvalConfig.label : 'No status'}
-          className={`po-col-art po-gap-tight shrink-0 rounded text-xs font-medium border transition-colors ${artBtnColor} hover:opacity-80`}
+          className={`po-col-art po-gap shrink-0 rounded text-xs font-medium border transition-colors ${artBtnColor} hover:opacity-80`}
         >
           Art
         </button>
       )}
+
+      <InvoiceAssignmentCell
+        party="supplier"
+        orderItem={orderItem}
+        access={access}
+        invoiceOptions={invoiceOptions}
+        onInvoicePatch={onInvoicePatch}
+        onInvoiceOptionsChange={onInvoiceOptionsChange}
+      />
+
+      <InvoiceAssignmentCell
+        party="manufacturer"
+        orderItem={orderItem}
+        access={access}
+        invoiceOptions={invoiceOptions}
+        onInvoicePatch={onInvoicePatch}
+        onInvoiceOptionsChange={onInvoiceOptionsChange}
+      />
 
       <input
         type="text"

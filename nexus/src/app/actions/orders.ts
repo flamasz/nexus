@@ -12,6 +12,7 @@ import {
   PurchaseOrder,
   PurchaseOrderWithItems,
 } from '@/types/database';
+import { applyOrderItemQuantityDefaults } from '@/lib/orderItemQuantityDefaults';
 
 async function verifyOrderBelongsToOrg(orderId: string, orgId: string) {
   const supabase = await createClient();
@@ -252,6 +253,14 @@ export async function updateOrderItem(
     approval_status?: ItemStatus | null;
     notes?: string | null;
     order_qty?: number | null;
+    overrun_qty?: number | null;
+    accept_qty?: number | null;
+    supplier_inv_qty?: number | null;
+    manufacturer_inv_qty?: number | null;
+    overrun_qty_manual?: boolean;
+    accept_qty_manual?: boolean;
+    supplier_inv_qty_manual?: boolean;
+    manufacturer_inv_qty_manual?: boolean;
     item_order_status?: ItemOrderStatus;
     priority?: ItemPriority;
   }
@@ -262,6 +271,10 @@ export async function updateOrderItem(
     'category_id' in data ||
     'notes' in data ||
     'order_qty' in data ||
+    'overrun_qty' in data ||
+    'accept_qty' in data ||
+    'supplier_inv_qty' in data ||
+    'manufacturer_inv_qty' in data ||
     'item_order_status' in data ||
     'priority' in data;
   const requiresDesignerEdit = 'version' in data || 'approval_status' in data;
@@ -277,9 +290,31 @@ export async function updateOrderItem(
   const supabase = await createClient();
   await verifyOrderItemBelongsToOrg(itemId, orgId);
 
+  const { data: current, error: currentError } = await supabase
+    .from('order_items')
+    .select(`
+      order_qty,
+      overrun_qty,
+      accept_qty,
+      supplier_inv_qty,
+      manufacturer_inv_qty,
+      overrun_qty_manual,
+      accept_qty_manual,
+      supplier_inv_qty_manual,
+      manufacturer_inv_qty_manual
+    `)
+    .eq('id', itemId)
+    .single();
+
+  if (currentError || !current) {
+    throw currentError ?? new Error('Order item not found');
+  }
+
+  const quantityPatch = applyOrderItemQuantityDefaults(current as OrderItem, data);
+
   const { data: updated, error } = await supabase
     .from('order_items')
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update({ ...data, ...quantityPatch, updated_at: new Date().toISOString() })
     .eq('id', itemId)
     .select('*, item_name:item_names(*), category:categories(*)')
     .single();

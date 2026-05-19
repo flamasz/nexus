@@ -346,13 +346,28 @@
   .po-table-zoom .po-col-qty {
     width: var(--po-col-qty);
   }
+  .po-table-zoom .po-col-overrun-percent {
+    width: var(--po-col-overrun-percent);
+  }
   .po-table-zoom .po-col-version {
     width: var(--po-col-version);
   }
   .po-table-zoom .po-col-art {
     width: var(--po-col-art);
   }
+  .po-table-zoom .po-col-invoice {
+    width: var(--po-col-invoice);
+  }
   .po-table-zoom .po-col-notes-min {
     min-width: var(--po-col-notes-min);
+  }
+}
+
+@media (max-width: 1024px), (pointer: coarse) {
+  html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  html body textarea,
+  html body select,
+  html body .po-table-zoom :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select) {
+    font-size: 16px !important;
   }
 }

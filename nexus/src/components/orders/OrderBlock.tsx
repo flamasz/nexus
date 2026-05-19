@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -23,10 +23,18 @@ import { createItemName, updateItemName } from '@/app/actions/itemNames';
 import { createItem, updateItem } from '@/app/actions/items';
 import { archiveOrder, createOrderItem, deleteOrder, reorderOrderItems, updateOrderDate } from '@/app/actions/orders';
 import { CategoryForm } from '@/components/packaging/CategoryForm';
-import { Category, ItemName, ItemStatus, OrderItemWithDetails, PurchaseOrderWithItems } from '@/types/database';
+import {
+  Category,
+  InvoiceOption,
+  ItemName,
+  ItemStatus,
+  OrderItemInvoicePatch,
+  OrderItemWithDetails,
+  PurchaseOrderWithItems,
+} from '@/types/database';
 import { ArtworkModal } from './ArtworkModal';
 import { OrderItemRow } from './OrderItemRow';
-import { ITEM_STATUS_CONFIG } from '@/lib/itemStatus';
+import { ITEM_STATUS_CONFIG, ITEM_STATUS_OPTIONS } from '@/lib/itemStatus';
 
 const TABLE_ZOOM_OPTIONS = [1, 0.8, 0.6] as const;
 type TableZoom = (typeof TABLE_ZOOM_OPTIONS)[number];
@@ -42,6 +50,8 @@ interface OrderBlockProps {
   order: PurchaseOrderWithItems;
   itemNames: ItemName[];
   categories: Category[];
+  invoiceOptions: InvoiceOption[];
+  onInvoiceOptionsChange: (options: InvoiceOption[]) => void;
   access: UserAccess;
   artworkStatusMap: Record<string, string>;
   itemStatusMap: Record<string, string>;
@@ -150,6 +160,8 @@ export function OrderBlock({
   order,
   itemNames,
   categories,
+  invoiceOptions,
+  onInvoiceOptionsChange,
   access,
   artworkStatusMap,
   itemStatusMap,
@@ -169,6 +181,8 @@ export function OrderBlock({
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [displayDate, setDisplayDate] = useState(order.order_date);
   const [tableZoom, setTableZoom] = useState<TableZoom>(1);
+  const approvalMeasureRef = useRef<HTMLDivElement>(null);
+  const [approvalPillWidths, setApprovalPillWidths] = useState<Partial<Record<ItemStatus, number>>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -225,15 +239,25 @@ export function OrderBlock({
   const getEffectiveApprovalStatus = (oi: OrderItemWithDetails): ItemStatus =>
     (getPackagingItemStatus(oi) as ItemStatus) ?? oi.approval_status ?? 'new';
 
-  const widestApprovalLabelLength = Math.max(
-    0,
-    ...orderItems.map((oi) => ITEM_STATUS_CONFIG[getEffectiveApprovalStatus(oi)].label.length)
-  );
   const columnScale = TABLE_COLUMN_SCALE[tableZoom];
-  const approvalColumnWidth = `${Math.max(
-    'Approval'.length * APPROVAL_LABEL_WIDTH_REM * columnScale,
-    widestApprovalLabelLength * APPROVAL_LABEL_WIDTH_REM * columnScale + APPROVAL_DROPDOWN_CHROME_REM * columnScale
-  )}rem`;
+  const selectedApprovalStatuses =
+    orderItems.length > 0 ? orderItems.map(getEffectiveApprovalStatus) : (['new'] as ItemStatus[]);
+  const widestMeasuredApprovalPillWidth = Math.max(
+    0,
+    ...selectedApprovalStatuses.map((status) => approvalPillWidths[status] ?? 0)
+  );
+  const fallbackApprovalColumnWidthRem = Math.max(
+    0,
+    ...selectedApprovalStatuses.map(
+      (status) =>
+        ITEM_STATUS_CONFIG[status].label.length * APPROVAL_LABEL_WIDTH_REM * tableZoom +
+        APPROVAL_DROPDOWN_CHROME_REM * tableZoom
+    )
+  );
+  const approvalColumnWidth =
+    widestMeasuredApprovalPillWidth > 0
+      ? `${widestMeasuredApprovalPillWidth}px`
+      : `${fallbackApprovalColumnWidthRem}rem`;
 
   const handleAddItem = async () => {
     if (!access.canAddOrderItems) return;
@@ -282,6 +306,25 @@ export function OrderBlock({
     onOrderItemsChange(order.id, newItems);
   };
 
+  const handleInvoicePatch = (patch: OrderItemInvoicePatch) => {
+    const newItems = orderItems.map((oi) =>
+      oi.id === patch.orderItemId
+        ? {
+            ...oi,
+            supplier_invoice_id: patch.supplier_invoice_id,
+            manufacturer_invoice_id: patch.manufacturer_invoice_id,
+            supplier_inv_qty: patch.supplier_inv_qty,
+            manufacturer_inv_qty: patch.manufacturer_inv_qty,
+            supplier_inv_qty_manual: patch.supplier_inv_qty_manual,
+            manufacturer_inv_qty_manual: patch.manufacturer_inv_qty_manual,
+            updated_at: patch.updated_at,
+          }
+        : oi
+    );
+    setOrderItems(newItems);
+    onOrderItemsChange(order.id, newItems);
+  };
+
   const handleItemDelete = (id: string) => {
     const newItems = orderItems.filter((oi) => oi.id !== id);
     setOrderItems(newItems);
@@ -306,18 +349,62 @@ export function OrderBlock({
     '--po-control-py': scaledRem(0.25),
     '--po-control-height': scaledRem(1.625),
     '--po-col-handle': scaledColumnRem(1.25),
-    '--po-col-priority': scaledColumnRem(6.75),
+    '--po-col-priority': scaledColumnRem(6.25),
     '--po-col-status': scaledColumnRem(3.5),
     '--po-col-item': scaledColumnRem(14),
     '--po-col-category': scaledColumnRem(8.4),
     '--po-col-qty': scaledColumnRem(4.8),
+    '--po-col-overrun-percent': scaledColumnRem(2.4),
     '--po-col-version': scaledColumnRem(5),
     '--po-col-art': scaledColumnRem(2.5),
+    '--po-col-invoice': scaledColumnRem(5.75),
     '--po-col-notes-min': scaledColumnRem(12.5),
   } as CSSProperties & Record<`--po-${string}`, string>;
 
+  useLayoutEffect(() => {
+    const buttons = approvalMeasureRef.current?.querySelectorAll<HTMLButtonElement>('[data-approval-status]');
+    if (!buttons) return;
+
+    const next: Partial<Record<ItemStatus, number>> = {};
+    buttons.forEach((button) => {
+      const status = button.dataset.approvalStatus as ItemStatus | undefined;
+      if (status) {
+        next[status] = Math.ceil(button.getBoundingClientRect().width);
+      }
+    });
+
+    setApprovalPillWidths((current) => {
+      const changed = ITEM_STATUS_OPTIONS.some((status) => current[status] !== next[status]);
+      return changed ? next : current;
+    });
+  }, [tableZoom]);
+
   return (
     <>
+      <div
+        ref={approvalMeasureRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed -left-[10000px] top-0 opacity-0 po-table-zoom"
+        style={tableZoomStyle}
+      >
+        {ITEM_STATUS_OPTIONS.map((status) => {
+          const config = ITEM_STATUS_CONFIG[status];
+          return (
+            <button
+              key={status}
+              type="button"
+              data-approval-status={status}
+              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium transition-colors gap-0.5 ${config.bg} ${config.text} ${config.border}`}
+              tabIndex={-1}
+            >
+              {config.label}
+              <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          );
+        })}
+      </div>
       <div className="bg-surface border border-border rounded-lg shadow-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised rounded-t-lg">
           <div className="flex flex-col items-start gap-1.5">
@@ -383,18 +470,26 @@ export function OrderBlock({
           <div className="po-table-zoom" style={tableZoomStyle}>
             <div className="po-table-header po-table-row flex items-center w-max min-w-full bg-surface-raised border-b border-border text-[10px] font-medium text-foreground-subtle uppercase tracking-wide">
               <span className="po-col-handle shrink-0" />
-              <span className="po-col-priority po-gap-tight shrink-0">Priority</span>
+              <span className="po-col-priority po-gap shrink-0">Priority</span>
               <span className="po-col-status po-gap shrink-0">Status</span>
               <span className="po-col-item po-gap shrink-0">Item</span>
               <span className="po-col-category po-gap shrink-0">Category</span>
               <span className="po-col-qty po-gap shrink-0 text-right">QTY</span>
+              <span className="po-col-qty po-gap shrink-0 text-right">Final Qty</span>
+              <span className="po-col-overrun-percent po-gap-tight shrink-0 text-right">OR %</span>
+              <span className="po-col-qty po-gap shrink-0 text-right">Accept</span>
               {access.canViewArtworkFields && <span className="po-col-version po-gap shrink-0">Version</span>}
               {access.canViewArtworkFields && (
-                <span className="po-gap shrink-0" style={{ width: approvalColumnWidth, minWidth: approvalColumnWidth }}>
+                <span
+                  className="po-gap flex shrink-0 justify-start"
+                  style={{ width: approvalColumnWidth, minWidth: approvalColumnWidth }}
+                >
                   Approval
                 </span>
               )}
-              {access.canOpenArtworkModal && <span className="po-col-art po-gap-tight shrink-0 text-center">Art</span>}
+              {access.canOpenArtworkModal && <span className="po-col-art po-gap shrink-0 text-center">Art</span>}
+              {access.canViewInvoices && <span className="po-col-invoice po-gap shrink-0">SPLR Inv</span>}
+              {access.canViewInvoices && <span className="po-col-invoice po-gap shrink-0">MFR Inv</span>}
               <span className="po-col-notes-min po-gap flex-1">Notes</span>
               <span className="po-col-handle po-gap shrink-0" />
             </div>
@@ -419,12 +514,15 @@ export function OrderBlock({
                       orderItem={oi}
                       itemNames={itemNames}
                       categories={categories}
+                      invoiceOptions={invoiceOptions}
+                      onInvoiceOptionsChange={onInvoiceOptionsChange}
                       artworkStatus={getArtworkStatus(oi)}
                       packagingItemId={getPackagingItemId(oi)}
                       packagingItemStatus={getPackagingItemStatus(oi)}
                       onOpenArtwork={setArtworkModalItem}
                       onDelete={handleItemDelete}
                       onChange={handleItemChange}
+                      onInvoicePatch={handleInvoicePatch}
                       onCreateItemName={createItemName}
                       onUpdateItemName={updateItemName}
                       onCreateCategory={(prefillName) => {

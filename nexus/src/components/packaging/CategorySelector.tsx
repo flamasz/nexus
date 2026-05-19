@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { getAnchoredDropdownPosition } from '@/lib/dropdownPosition';
 import { Category } from '@/types/database';
 import { getCategoryColorClasses } from '@/lib/categoryColors';
 import { formatDimensions } from '@/lib/utils/formatDimensions';
@@ -25,7 +26,7 @@ export function CategorySelector({
 }: CategorySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 384 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,12 +40,7 @@ export function CategorySelector({
   // Update dropdown position
   const updatePosition = useCallback(() => {
     if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom,
-        left: rect.left,
-        width: Math.max(rect.width * 1.04, 229),
-      });
+      setDropdownPosition(getAnchoredDropdownPosition(containerRef.current, { minWidth: 229, widthMultiplier: 1.04 }));
     }
   }, []);
 
@@ -167,11 +163,12 @@ export function CategorySelector({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
           ref={dropdownRef}
-          className="fixed bg-surface-overlay border border-border rounded-md shadow-lg max-h-96 flex flex-col overflow-hidden"
+          className="fixed bg-surface-overlay border border-border rounded-md shadow-lg flex flex-col overflow-hidden"
           style={{
-            top: dropdownPosition.top + 4,
+            top: dropdownPosition.top,
             left: dropdownPosition.left,
             width: dropdownPosition.width,
+            maxHeight: dropdownPosition.maxHeight,
             zIndex: 10000,
           }}
         >

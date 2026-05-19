@@ -18,6 +18,11 @@ export interface ResolvedUserAccess {
   canDeleteOrderItems: boolean;
   canArchiveOrders: boolean;
   canDeleteOrders: boolean;
+  canViewInvoices: boolean;
+  canCreateInvoices: boolean;
+  canEditInvoices: boolean;
+  canDeleteInvoices: boolean;
+  canAssignInvoices: boolean;
   canViewDesignerFields: boolean;
   canViewArtworkFields: boolean;
   canEditDesignerFields: boolean;
@@ -64,6 +69,11 @@ const ACCESS_KEYS = [
   'canDeleteOrderItems',
   'canArchiveOrders',
   'canDeleteOrders',
+  'canViewInvoices',
+  'canCreateInvoices',
+  'canEditInvoices',
+  'canDeleteInvoices',
+  'canAssignInvoices',
   'canViewDesignerFields',
   'canViewArtworkFields',
   'canEditDesignerFields',
@@ -95,6 +105,11 @@ const OVERRIDE_TO_ACCESS_KEY: Record<keyof PermissionOverrides, keyof ResolvedUs
   deleteOrderItems: 'canDeleteOrderItems',
   archiveOrders: 'canArchiveOrders',
   deleteOrders: 'canDeleteOrders',
+  viewInvoices: 'canViewInvoices',
+  createInvoices: 'canCreateInvoices',
+  editInvoices: 'canEditInvoices',
+  deleteInvoices: 'canDeleteInvoices',
+  assignInvoices: 'canAssignInvoices',
   viewDesignerFields: 'canViewDesignerFields',
   editDesignerFields: 'canEditDesignerFields',
   openArtworkModal: 'canOpenArtworkModal',
@@ -188,6 +203,11 @@ export function resolveUserAccess(user: Pick<User, 'role' | 'permissions'> | nul
     canDeleteOrderItems: isAdmin || purchaser,
     canArchiveOrders: isAdmin || purchaser,
     canDeleteOrders: isAdmin,
+    canViewInvoices: isAdmin || purchaser,
+    canCreateInvoices: isAdmin || purchaser,
+    canEditInvoices: isAdmin || purchaser,
+    canDeleteInvoices: isAdmin || purchaser,
+    canAssignInvoices: isAdmin || purchaser,
     canViewDesignerFields: isAdmin || vendor || designer === 'view' || designer === 'edit',
     canViewArtworkFields: isAdmin || vendor || designer === 'view' || designer === 'edit',
     canEditDesignerFields: isAdmin || designer === 'edit',
@@ -215,6 +235,10 @@ export function resolveUserAccess(user: Pick<User, 'role' | 'permissions'> | nul
     if (typeof overrideValue === 'boolean') {
       access[OVERRIDE_TO_ACCESS_KEY[overrideKey]] = overrideValue;
     }
+  }
+
+  if (access.canAssignInvoices && !access.canViewInvoices) {
+    access.canAssignInvoices = false;
   }
 
   return access;
