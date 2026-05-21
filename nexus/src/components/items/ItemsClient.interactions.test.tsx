@@ -17,6 +17,7 @@ const adminUser: User = {
   display_name: 'Alex Admin',
   role: 'admin',
   organization_id: 'org-1',
+  active_bc_connection_id: null,
   permissions: null,
   permissions_version: 1,
   permissions_updated_at: null,

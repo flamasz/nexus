@@ -2,14 +2,16 @@
 
 import {
   BcApiError,
+  BcClient,
   BcCompany,
   BcItem,
   BcItemCategory,
   BcListResponse,
   BcTaxGroup,
   BcUnitOfMeasure,
-  createBcClientFromEnv,
+  createBcClientForOrg,
 } from '@/lib/businessCentral/client';
+import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
 import { requirePermission } from '@/lib/auth/currentUserAccess';
 import { ResolvedUserAccess } from '@/lib/auth/permissions';
 
@@ -40,10 +42,15 @@ async function requireSpikeAccess() {
   return requirePermission(canRunBusinessCentralSpike, 'Only admins or catalog managers can run the Business Central integration spike.');
 }
 
+async function bcClientForSpike(): Promise<BcClient> {
+  const { orgId, user } = await requireSpikeAccess();
+  const activeConnection = await resolveActiveBcConnection(orgId, user.id);
+  return createBcClientForOrg(orgId, activeConnection?.id);
+}
+
 export async function probeBusinessCentralConnection(): Promise<BusinessCentralSpikeResult<BusinessCentralConnectionProbe>> {
   try {
-    await requireSpikeAccess();
-    const client = createBcClientFromEnv();
+    const client = await bcClientForSpike();
     const [token, company] = await Promise.all([client.getAccessToken(), client.getCompany()]);
     return {
       ok: true,
@@ -60,8 +67,8 @@ export async function probeBusinessCentralConnection(): Promise<BusinessCentralS
 
 export async function fetchBusinessCentralCompanies(): Promise<BusinessCentralSpikeResult<BcListResponse<BcCompany>>> {
   try {
-    await requireSpikeAccess();
-    return { ok: true, data: await createBcClientFromEnv().listCompanies() };
+    const client = await bcClientForSpike();
+    return { ok: true, data: await client.listCompanies() };
   } catch (error) {
     return failure(error);
   }
@@ -69,8 +76,8 @@ export async function fetchBusinessCentralCompanies(): Promise<BusinessCentralSp
 
 export async function fetchBusinessCentralItemSample(top = 5): Promise<BusinessCentralSpikeResult<BcListResponse<BcItem>>> {
   try {
-    await requireSpikeAccess();
-    return { ok: true, data: await createBcClientFromEnv().listItems({ top: clampTop(top) }) };
+    const client = await bcClientForSpike();
+    return { ok: true, data: await client.listItems({ top: clampTop(top) }) };
   } catch (error) {
     return failure(error);
   }
@@ -78,9 +85,9 @@ export async function fetchBusinessCentralItemSample(top = 5): Promise<BusinessC
 
 export async function fetchBusinessCentralItemById(itemId: string): Promise<BusinessCentralSpikeResult<BcItem>> {
   try {
-    await requireSpikeAccess();
+    const client = await bcClientForSpike();
     if (!itemId) throw new Error('itemId is required.');
-    return { ok: true, data: await createBcClientFromEnv().getItem(itemId) };
+    return { ok: true, data: await client.getItem(itemId) };
   } catch (error) {
     return failure(error);
   }
@@ -92,8 +99,7 @@ export async function fetchBusinessCentralReferenceSamples(): Promise<BusinessCe
   unitsOfMeasure: BcListResponse<BcUnitOfMeasure>;
 }>> {
   try {
-    await requireSpikeAccess();
-    const client = createBcClientFromEnv();
+    const client = await bcClientForSpike();
     const [itemCategories, taxGroups, unitsOfMeasure] = await Promise.all([
       client.listItemCategories({ top: 5 }),
       client.listTaxGroups({ top: 5 }),

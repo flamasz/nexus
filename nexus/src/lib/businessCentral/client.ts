@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 export const DEFAULT_BC_API_BASE_URL =
   "https://api.businesscentral.dynamics.com";
 export const BC_TOKEN_SCOPE =
@@ -428,6 +430,107 @@ export function readBcClientConfigFromEnv(
   }
 
   return config as BcClientConfig;
+}
+
+export interface CreateBcClientForOrgOptions {
+  /**
+   * Service-role Supabase client used for the credential/connection reads.
+   * Injected in tests; defaults to `createServiceClient()` at call time.
+   */
+  supabase?: SupabaseClient;
+}
+
+async function getServiceClient(): Promise<SupabaseClient> {
+  // Imported lazily so this module's static graph (and its unit tests) do not
+  // pull in the Next.js server runtime.
+  const { createServiceClient } = await import("@/lib/supabase/server");
+  return createServiceClient() as unknown as SupabaseClient;
+}
+
+/**
+ * Builds a Business Central client from an organization's stored credentials
+ * and a specific environment connection.
+ *
+ * - `connectionId` selects the environment; when omitted the org's default
+ *   (`is_default`) connection is used.
+ * - The shared tenant/client IDs come from `business_central_credentials`; the
+ *   client secret is decrypted from Supabase Vault via the
+ *   `get_bc_client_secret` SECURITY DEFINER wrapper.
+ * - Phase 1 fallback: when no credentials row exists yet (before the env-var
+ *   seed runs), this falls back to `createBcClientFromEnv()` so existing
+ *   behavior is preserved. The env-var path is removed at Phase 2 start.
+ */
+export async function createBcClientForOrg(
+  orgId: string,
+  connectionId?: string,
+  options: CreateBcClientForOrgOptions = {},
+): Promise<BcClient> {
+  const supabase = options.supabase ?? (await getServiceClient());
+
+  const { data: credentials, error: credentialsError } = await supabase
+    .from("business_central_credentials")
+    .select("tenant_id, client_id, default_api_base_url")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+
+  if (credentialsError) {
+    throw new Error(
+      `Failed to load Business Central credentials: ${credentialsError.message}`,
+    );
+  }
+
+  // Phase 1 fallback — no credentials seeded yet, keep the env-var path alive.
+  if (!credentials) {
+    return createBcClientFromEnv();
+  }
+
+  const connectionQuery = supabase
+    .from("business_central_connections")
+    .select("environment, company_id, api_base_url")
+    .eq("organization_id", orgId);
+  const { data: connection, error: connectionError } = connectionId
+    ? await connectionQuery.eq("id", connectionId).maybeSingle()
+    : await connectionQuery.eq("is_default", true).maybeSingle();
+
+  if (connectionError) {
+    throw new Error(
+      `Failed to load Business Central environment: ${connectionError.message}`,
+    );
+  }
+  if (!connection) {
+    throw new Error(
+      connectionId
+        ? `Business Central environment ${connectionId} was not found for this organization.`
+        : "No default Business Central environment is configured for this organization.",
+    );
+  }
+
+  const { data: clientSecret, error: secretError } = await supabase.rpc(
+    "get_bc_client_secret",
+    { p_org_id: orgId },
+  );
+  if (secretError) {
+    throw new Error(
+      `Failed to read the Business Central client secret: ${secretError.message}`,
+    );
+  }
+  if (!clientSecret) {
+    throw new Error(
+      "No Business Central client secret is stored for this organization.",
+    );
+  }
+
+  const config: BcClientConfig = {
+    tenantId: credentials.tenant_id,
+    clientId: credentials.client_id,
+    clientSecret: clientSecret as string,
+    environment: connection.environment,
+    companyId: connection.company_id,
+    apiBaseUrl:
+      connection.api_base_url ?? credentials.default_api_base_url ?? undefined,
+  };
+
+  return createBcClient(config);
 }
 
 export function apiRoot(

@@ -82,6 +82,7 @@ export interface User {
   display_name: string;
   role: UserRole;
   organization_id: string | null;
+  active_bc_connection_id: string | null;
   permissions: UserPermissions | null;
   permissions_version: number;
   permissions_updated_at: string | null;
@@ -149,14 +150,27 @@ export interface Item {
   bc_item_id: string | null;
 }
 
+export interface BusinessCentralCredentials {
+  id: string;
+  organization_id: string;
+  tenant_id: string;
+  client_id: string;
+  client_secret_id: string | null;
+  default_api_base_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BusinessCentralConnection {
   id: string;
   organization_id: string;
   environment: string;
+  display_name: string;
   company_id: string;
   company_name: string | null;
   api_base_url: string;
   sync_enabled: boolean;
+  is_default: boolean;
   last_verified_at: string | null;
   last_error: string | null;
   last_pulled_at: string | null;
@@ -360,6 +374,7 @@ export interface OrderItem {
   accept_qty_manual: boolean;
   supplier_inv_qty_manual: boolean;
   manufacturer_inv_qty_manual: boolean;
+  overrun_accepted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -439,11 +454,13 @@ export interface Database {
           | "updated_at"
           | "permissions_updated_at"
           | "permissions_version"
+          | "active_bc_connection_id"
         > & {
           created_at?: string;
           updated_at?: string;
           permissions_updated_at?: string | null;
           permissions_version?: number;
+          active_bc_connection_id?: string | null;
         };
         Update: Partial<Omit<User, "id">>;
       };
@@ -565,6 +582,7 @@ export interface Database {
           | "accept_qty_manual"
           | "supplier_inv_qty_manual"
           | "manufacturer_inv_qty_manual"
+          | "overrun_accepted"
         > & {
           id?: string;
           created_at?: string;
@@ -582,6 +600,7 @@ export interface Database {
           accept_qty_manual?: boolean;
           supplier_inv_qty_manual?: boolean;
           manufacturer_inv_qty_manual?: boolean;
+          overrun_accepted?: boolean;
         };
         Update: Partial<Omit<OrderItem, "id">>;
       };
@@ -603,15 +622,39 @@ export interface Database {
         Row: BusinessCentralConnection;
         Insert: Omit<
           BusinessCentralConnection,
-          "id" | "created_at" | "updated_at" | "api_base_url" | "sync_enabled"
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "api_base_url"
+          | "sync_enabled"
+          | "is_default"
         > & {
           id?: string;
           created_at?: string;
           updated_at?: string;
           api_base_url?: string;
           sync_enabled?: boolean;
+          is_default?: boolean;
         };
         Update: Partial<Omit<BusinessCentralConnection, "id">>;
+      };
+      business_central_credentials: {
+        Row: BusinessCentralCredentials;
+        Insert: Omit<
+          BusinessCentralCredentials,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "client_secret_id"
+          | "default_api_base_url"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          client_secret_id?: string | null;
+          default_api_base_url?: string | null;
+        };
+        Update: Partial<Omit<BusinessCentralCredentials, "id">>;
       };
       business_central_item_categories: {
         Row: BusinessCentralItemCategory;

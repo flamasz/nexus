@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 
 import { requireOrganizationContext, requirePermission } from '@/lib/auth/currentUserAccess';
 import { ResolvedUserAccess } from '@/lib/auth/permissions';
-import { BcApiError, createBcClientFromEnv } from '@/lib/businessCentral/client';
+import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
+import { BcApiError, BcClient, createBcClientForOrg } from '@/lib/businessCentral/client';
 import {
   buildBcCreatePayload,
   buildBcPatchPayload,
@@ -126,9 +127,10 @@ export async function getBusinessCentralConnectionStatus(): Promise<BusinessCent
 }
 
 export async function verifyBusinessCentralConnection(): Promise<void> {
-  const { orgId } = await requireBcConnectionManage();
+  const { orgId, user } = await requireBcConnectionManage();
   const supabase = createServiceClient();
-  const client = createBcClientFromEnv();
+  const activeConnection = await resolveActiveBcConnection(orgId, user.id);
+  const client = await createBcClientForOrg(orgId, activeConnection?.id);
   const now = new Date().toISOString();
 
   try {
@@ -208,7 +210,8 @@ export async function syncBusinessCentralItems(options: { full?: boolean } = {})
 
   try {
     await refreshReferenceDataForConnection(supabase, orgId, connection, now);
-    const client = createBcClientFromEnv();
+    const activeConnection = await resolveActiveBcConnection(orgId, user.id);
+    const client = await createBcClientForOrg(orgId, activeConnection?.id);
     const filter = !options.full && connection.last_pulled_at ? `lastModifiedDateTime gt ${connection.last_pulled_at}` : undefined;
     const response = await client.listAllItems({ pageSize: BC_SYNC_PAGE_SIZE, maxItems: MAX_SYNC_PULL_ITEMS, filter });
     let imported = 0;
@@ -321,7 +324,8 @@ export async function pushBusinessCentralItem(itemId: string): Promise<BusinessC
   const supabase = createServiceClient();
   const now = new Date().toISOString();
   const row = await getBusinessCentralItemRow(supabase, itemId, orgId);
-  const client = createBcClientFromEnv();
+  const activeConnection = await resolveActiveBcConnection(orgId, user.id);
+  const client = await createBcClientForOrg(orgId, activeConnection?.id);
 
   let pushedEntry: BusinessCentralItemWithDetails | null = null;
 
@@ -423,7 +427,8 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
   let createdEntry: BusinessCentralItemWithDetails | null = null;
 
   try {
-    const client = createBcClientFromEnv();
+    const activeConnection = await resolveActiveBcConnection(orgId, user.id);
+    const client = await createBcClientForOrg(orgId, activeConnection?.id);
     const created = await client.createItem(buildBcCreatePayload(draft));
     const createPayload = {
       ...mapBcItemToDb({
@@ -481,8 +486,10 @@ export async function deleteBusinessCentralItem(itemId: string, confirmation: st
   const now = new Date().toISOString();
 
   try {
+    const activeConnection = await resolveActiveBcConnection(orgId, user.id);
+    const client = await createBcClientForOrg(orgId, activeConnection?.id);
     try {
-      await createBcClientFromEnv().deleteItem(row.bc_item_id, row.bc_etag ?? '*');
+      await client.deleteItem(row.bc_item_id, row.bc_etag ?? '*');
     } catch (error) {
       if (!(error instanceof BcApiError) || error.details.status !== 404) {
         throw error;
@@ -516,7 +523,7 @@ export async function deleteBusinessCentralItem(itemId: string, confirmation: st
 
 async function resolveStalePush(
   supabase: SupabaseClient,
-  client: ReturnType<typeof createBcClientFromEnv>,
+  client: BcClient,
   row: BusinessCentralItem,
   orgId: string,
   userId: string,
@@ -592,7 +599,7 @@ async function refreshReferenceDataForConnection(
   connection: BusinessCentralConnection,
   now: string
 ): Promise<void> {
-  const client = createBcClientFromEnv();
+  const client = await createBcClientForOrg(orgId, connection.id);
   const fetchedResources = await Promise.all(
     BUSINESS_CENTRAL_REFERENCE_RESOURCES.map(async (resource) => ({
       resource,

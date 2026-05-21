@@ -1,9 +1,11 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BC_TOKEN_SCOPE,
   apiRoot,
   createBcClient,
+  createBcClientForOrg,
   readBcClientConfigFromEnv,
   resetBcClientTokenCacheForTests,
 } from './client';
@@ -44,7 +46,7 @@ describe('Business Central client', () => {
   });
 
   it('reads required config from env and reports missing values', () => {
-    expect(() => readBcClientConfigFromEnv({})).toThrow(/Missing Business Central env vars/);
+    expect(() => readBcClientConfigFromEnv({} as NodeJS.ProcessEnv)).toThrow(/Missing Business Central env vars/);
     expect(
       readBcClientConfigFromEnv({
         BUSINESS_CENTRAL_TENANT_ID: 'tenant',
@@ -52,7 +54,7 @@ describe('Business Central client', () => {
         BUSINESS_CENTRAL_CLIENT_SECRET: 'secret',
         BUSINESS_CENTRAL_ENVIRONMENT: 'sandbox',
         BUSINESS_CENTRAL_DEFAULT_COMPANY_ID: 'company',
-      })
+      } as NodeJS.ProcessEnv)
     ).toMatchObject({ tenantId: 'tenant', clientId: 'client', environment: 'sandbox', companyId: 'company' });
   });
 
@@ -145,5 +147,102 @@ describe('Business Central client', () => {
     expect(String(fetchImpl.mock.calls[2][0])).toBe(
       'https://api.businesscentral.dynamics.com/v2.0/sandbox/api/v2.0/companies(company-id)/inventoryPostingGroups?%24top=100'
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createBcClientForOrg
+// ---------------------------------------------------------------------------
+
+interface BcCredentialsMock {
+  tenant_id: string;
+  client_id: string;
+  default_api_base_url: string | null;
+}
+
+interface BcConnectionMock {
+  environment: string;
+  company_id: string;
+  api_base_url: string | null;
+}
+
+interface SupaMockOptions {
+  credentials?: BcCredentialsMock | null;
+  credentialsError?: { message: string } | null;
+  connection?: BcConnectionMock | null;
+  connectionError?: { message: string } | null;
+  clientSecret?: string | null;
+  secretError?: { message: string } | null;
+}
+
+function makeQueryChain(result: { data: unknown; error: { message: string } | null }) {
+  const chain = {
+    select: (): typeof chain => chain,
+    eq: (): typeof chain => chain,
+    maybeSingle: async () => result,
+  };
+  return chain;
+}
+
+function makeSupaMock({
+  credentials = { tenant_id: 'tenant-id', client_id: 'client-id', default_api_base_url: null },
+  credentialsError = null,
+  connection = { environment: 'sandbox', company_id: 'company-id', api_base_url: null },
+  connectionError = null,
+  clientSecret = 'mock-secret',
+  secretError = null,
+}: SupaMockOptions = {}): SupabaseClient {
+  return {
+    from: (table: string) => {
+      if (table === 'business_central_credentials') {
+        return makeQueryChain({ data: credentialsError ? null : credentials, error: credentialsError ?? null });
+      }
+      if (table === 'business_central_connections') {
+        return makeQueryChain({ data: connectionError ? null : connection, error: connectionError ?? null });
+      }
+      return makeQueryChain({ data: null, error: null });
+    },
+    rpc: async (_fn: string, _params: unknown) => ({
+      data: secretError ? null : clientSecret,
+      error: secretError ?? null,
+    }),
+  } as unknown as SupabaseClient;
+}
+
+describe('createBcClientForOrg', () => {
+  it('builds a BcClient from database credentials and the org default connection', async () => {
+    const client = await createBcClientForOrg('org-id', undefined, { supabase: makeSupaMock() });
+    expect(client.config).toMatchObject({
+      tenantId: 'tenant-id',
+      clientId: 'client-id',
+      environment: 'sandbox',
+      companyId: 'company-id',
+      apiBaseUrl: 'https://api.businesscentral.dynamics.com',
+    });
+  });
+
+  it('uses a connection-level api_base_url when present', async () => {
+    const client = await createBcClientForOrg('org-id', undefined, {
+      supabase: makeSupaMock({
+        connection: { environment: 'Production', company_id: 'prod-co', api_base_url: 'https://custom.bc.example.com' },
+      }),
+    });
+    expect(client.config).toMatchObject({
+      environment: 'Production',
+      companyId: 'prod-co',
+      apiBaseUrl: 'https://custom.bc.example.com',
+    });
+  });
+
+  it('throws when no default connection is configured for the org', async () => {
+    await expect(
+      createBcClientForOrg('org-id', undefined, { supabase: makeSupaMock({ connection: null }) }),
+    ).rejects.toThrow(/No default Business Central environment/);
+  });
+
+  it('throws when the client secret is absent from Vault', async () => {
+    await expect(
+      createBcClientForOrg('org-id', undefined, { supabase: makeSupaMock({ clientSecret: null }) }),
+    ).rejects.toThrow(/No Business Central client secret/);
   });
 });
