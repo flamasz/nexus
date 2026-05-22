@@ -96,9 +96,9 @@ async function requireBcConnectionManage() {
 }
 
 export async function getBusinessCentralItemsPageData(): Promise<BusinessCentralItemsPageData> {
-  const { orgId } = await requireBcView();
+  const { orgId, user } = await requireBcView();
   const supabase = createServiceClient();
-  const connection = await getConnection(supabase, orgId);
+  const connection = await resolveActiveBcConnection(orgId, user.id);
   const [items, events, references] = await Promise.all([
     getItemsWithDetails(supabase, orgId),
     getRecentEvents(supabase, orgId),
@@ -116,9 +116,8 @@ export async function getBusinessCentralItemsPageData(): Promise<BusinessCentral
 
 
 export async function getBusinessCentralConnectionStatus(): Promise<BusinessCentralConnectionStatusData> {
-  const { orgId } = await requireOrganizationContext();
-  const supabase = createServiceClient();
-  const connection = await getConnection(supabase, orgId);
+  const { orgId, user } = await requireOrganizationContext();
+  const connection = await resolveActiveBcConnection(orgId, user.id);
 
   return {
     connection: toConnectionState(connection),
@@ -130,14 +129,17 @@ export async function verifyBusinessCentralConnection(): Promise<void> {
   const { orgId, user } = await requireBcConnectionManage();
   const supabase = createServiceClient();
   const activeConnection = await resolveActiveBcConnection(orgId, user.id);
-  const client = await createBcClientForOrg(orgId, activeConnection?.id);
+  if (!activeConnection) {
+    throw new Error('No Business Central environment is configured to verify');
+  }
+  const client = await createBcClientForOrg(orgId, activeConnection.id);
   const now = new Date().toISOString();
 
   try {
     const company = await client.getCompany();
-    await supabase.from('business_central_connections').upsert(
-      {
-        organization_id: orgId,
+    await supabase
+      .from('business_central_connections')
+      .update({
         environment: client.config.environment,
         company_id: client.config.companyId,
         company_name: company.displayName || company.name,
@@ -146,9 +148,8 @@ export async function verifyBusinessCentralConnection(): Promise<void> {
         last_verified_at: now,
         last_error: null,
         updated_at: now,
-      },
-      { onConflict: 'organization_id' }
-    );
+      })
+      .eq('id', activeConnection.id);
     await recordEvent(supabase, {
       organization_id: orgId,
       direction: 'connection_test',
@@ -157,18 +158,17 @@ export async function verifyBusinessCentralConnection(): Promise<void> {
       created_at: now,
     });
   } catch (error) {
-    await supabase.from('business_central_connections').upsert(
-      {
-        organization_id: orgId,
+    await supabase
+      .from('business_central_connections')
+      .update({
         environment: client.config.environment,
         company_id: client.config.companyId,
         api_base_url: client.config.apiBaseUrl,
         sync_enabled: false,
         last_error: error instanceof Error ? error.message : 'Unknown Business Central connection error',
         updated_at: now,
-      },
-      { onConflict: 'organization_id' }
-    );
+      })
+      .eq('id', activeConnection.id);
     await recordFailureEvent(supabase, orgId, 'connection_test', null, error, now);
     throw error;
   }
@@ -177,9 +177,9 @@ export async function verifyBusinessCentralConnection(): Promise<void> {
 }
 
 export async function refreshBusinessCentralReferenceData(): Promise<void> {
-  const { orgId } = await requireBcEdit();
+  const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
-  const connection = await requireConnection(supabase, orgId);
+  const connection = await requireConnection(orgId, user.id);
   const now = new Date().toISOString();
 
   try {
@@ -195,7 +195,7 @@ export async function refreshBusinessCentralReferenceData(): Promise<void> {
 export async function syncBusinessCentralItems(options: { full?: boolean } = {}): Promise<{ imported: number; skipped: number }> {
   const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
-  const connection = await requireConnection(supabase, orgId);
+  const connection = await requireConnection(orgId, user.id);
   const now = new Date().toISOString();
   const lockUntil = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
@@ -376,7 +376,7 @@ export async function pushBusinessCentralItem(itemId: string): Promise<BusinessC
 export async function createBusinessCentralItem(input: CreateBusinessCentralItemInput): Promise<BusinessCentralItemWithDetails> {
   const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
-  const connection = await requireConnection(supabase, orgId);
+  const connection = await requireConnection(orgId, user.id);
   const now = new Date().toISOString();
   const clientRequestId = crypto.randomUUID();
   const draft: BusinessCentralItem = {
@@ -580,14 +580,8 @@ async function resolveStalePush(
   });
 }
 
-async function getConnection(supabase: SupabaseClient, orgId: string): Promise<BusinessCentralConnection | null> {
-  const { data, error } = await supabase.from('business_central_connections').select('*').eq('organization_id', orgId).maybeSingle();
-  if (error) throw error;
-  return data as BusinessCentralConnection | null;
-}
-
-async function requireConnection(supabase: SupabaseClient, orgId: string): Promise<BusinessCentralConnection> {
-  const connection = await getConnection(supabase, orgId);
+async function requireConnection(orgId: string, userId: string): Promise<BusinessCentralConnection> {
+  const connection = await resolveActiveBcConnection(orgId, userId);
   if (!connection) throw new Error('Business Central is not connected');
   if (!connection.sync_enabled) throw new Error(connection.last_error || 'Business Central sync is disabled');
   return connection;

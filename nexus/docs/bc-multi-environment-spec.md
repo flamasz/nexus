@@ -31,7 +31,7 @@ Let an organization hold one shared set of Business Central credentials and conn
 ## Constraints
 - No new npm packages — existing shadcn/ui, Tailwind, Supabase, Node built-ins only.
 - Client secret stored in **Supabase Vault**, encrypted at rest; never sent to the browser.
-- Tenant ID and client ID are shared per org; **company is per-environment** (distinct company GUIDs per BC environment).
+- Tenant ID, client ID, and **company are shared per org** — one app registration, one company. The company is stored on the `business_central_credentials` row; each `business_central_connections` row carries a denormalized `company_id` mirror that the server actions keep in sync. (Amended 2026-05-21: company was originally specced per-environment.)
 - Three reviewable phases, built and reviewed in order: Data layer → Settings UI → Environment switcher.
 - `npm run build` and `npm run lint` must pass at the end of each phase.
 - Match existing Settings card styling (`bg-surface rounded-lg border border-border shadow-sm`, etc.).
@@ -46,7 +46,7 @@ Let an organization hold one shared set of Business Central credentials and conn
 1. **Topology** — 3 components, built in order: Data layer, Settings UI, Environment switcher.
 2. **Live state** — only the developer's dev/test setup exists; no production org, no real synced data to protect.
 3. **Deleting an environment** — keep its `business_central_items`, mark them orphaned. `bc_connection_id` is already `ON DELETE SET NULL`; orphaned items (null connection) become read-only history. Deletion still requires another environment to exist + a confirm dialog.
-4. **Active environment scope** — per-user choice. Each user picks their own environment; every sync/create/push/verify operation is scoped to the acting user's active environment. Per-environment item rows never collide because each environment uses a distinct company GUID.
+4. **Active environment scope** — per-user choice. Each user picks their own environment; every sync/create/push/verify operation is scoped to the acting user's active environment. Item rows are keyed by `bc_environment` (distinct per environment) alongside the shared company GUID, so the per-environment lists stay separate even though all environments share one company.
 5. **Per-org credentials** — build the full `business_central_credentials` table now, even though one org uses it.
 6. **Secret storage** — Supabase Vault. Enable the Vault extension; store the secret via `vault.create_secret`, keep only its UUID in `business_central_credentials.client_secret_id`; access through `SECURITY DEFINER` wrappers in the `public` schema called by the service-role client.
 7. **Env-var transition** — automatic. A one-time seed step (run in app context, since SQL cannot read env vars or write Vault) copies current env-var credentials into the new credentials table + creates a default environment row for the dev org. After seeding, the env-var code path (`createBcClientFromEnv`, `readBcClientConfigFromEnv`, the fallback branch) is deleted.
@@ -59,7 +59,7 @@ Let an organization hold one shared set of Business Central credentials and conn
 - [ ] Supabase Vault stores the client secret; the secret never appears in any table column or any client response.
 - [ ] One-time seed step copies env-var credentials into the new tables; afterward env-var code paths are removed and the build still passes.
 - [ ] `createBcClientForOrg(orgId, connectionId)` builds a client from stored credentials + a connection row, with unit coverage in `client.test.ts`.
-- [ ] Admin can enter/update credentials (secret is a password input, blank = keep existing) and add/edit/verify/delete environments in Settings; non-admins do not see these cards.
+- [ ] Admin can enter/update credentials (secret is a password input, blank = keep existing; **company ID is entered here, once, shared by every environment**) and add/edit/verify/delete environments. (Amended 2026-05-21: the two BC cards live in the Admin Panel, `(protected)/admin/page.tsx`, not the Settings page.)
 - [ ] Deleting an environment is blocked unless another exists, requires confirmation, and leaves its items as read-only orphaned records.
 - [ ] Org pill dropdown lists environments indented under the selected org; active environment has a checkmark; "Configure Business Central" / "No environments" links appear when appropriate.
 - [ ] Switching environment writes `users.active_bc_connection_id` and refreshes server-rendered data.
@@ -91,8 +91,8 @@ Let an organization hold one shared set of Business Central credentials and conn
 | Entity | Type | Fields | Relationships |
 |--------|------|--------|---------------|
 | Organization | core domain | id, name | has one BusinessCentralCredentials; has many BusinessCentralConnections |
-| BusinessCentralCredentials | core domain (new) | organization_id, tenant_id, client_id, client_secret_id (Vault ref), default_api_base_url | belongs to Organization |
-| BusinessCentralConnection (Environment) | core domain | id, organization_id, display_name, environment, company_id, company_name, api_base_url, is_default, sync state | belongs to Organization; has many BusinessCentralItems |
+| BusinessCentralCredentials | core domain (new) | organization_id, tenant_id, client_id, client_secret_id (Vault ref), company_id, company_name, default_api_base_url | belongs to Organization; source of truth for the shared company |
+| BusinessCentralConnection (Environment) | core domain | id, organization_id, display_name, environment, company_id (denormalized mirror of the org's shared company), company_name, api_base_url, is_default, sync state | belongs to Organization; has many BusinessCentralItems |
 | User | core domain | id, organization_id, role, active_bc_connection_id | belongs to Organization; selects one active BusinessCentralConnection |
 | BusinessCentralItem | core domain | bc_connection_id, bc_environment, bc_company_id, ... | belongs to a BusinessCentralConnection; orphaned when connection deleted |
 | VaultSecret | external system | id, decrypted_secret | referenced by BusinessCentralCredentials.client_secret_id |

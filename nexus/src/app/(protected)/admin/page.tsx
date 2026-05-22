@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { UserList } from '@/components/admin';
+import { BcCredentialsCard } from '@/components/businessCentral/BcCredentialsCard';
+import { BcEnvironmentsCard } from '@/components/businessCentral/BcEnvironmentsCard';
 import { getAllUsers, changeUserPassword, getCurrentUser, updateUserAccess } from '@/app/actions/users';
 import { resolveUserAccess } from '@/lib/auth/permissions';
 
@@ -28,6 +30,15 @@ export default async function AdminPage() {
           onChangePassword={changeUserPassword}
           onUpdateUserAccess={updateUserAccess}
         />
+
+        <div className="mt-10">
+          <h2 className="text-xl lg:text-2xl font-bold text-foreground">Business Central</h2>
+          <p className="text-foreground-muted mt-1">
+            Shared connection credentials and the environments your organization syncs with.
+          </p>
+          <BcCredentialsCard />
+          <BcEnvironmentsCard />
+        </div>
       </main>
     </div>
   );

@@ -107,6 +107,7 @@ async function main(): Promise<void> {
         organization_id: org.id,
         tenant_id: tenantId,
         client_id: clientId,
+        company_id: companyId,
         default_api_base_url: apiBaseUrl,
       },
       { onConflict: "organization_id" },
@@ -115,7 +116,9 @@ async function main(): Promise<void> {
   if (upsertError) {
     throw new Error(`Failed to upsert credentials row: ${upsertError.message}`);
   }
-  console.log("  ✓ Credentials row upserted (tenant_id, client_id, api_base_url)");
+  console.log(
+    "  ✓ Credentials row upserted (tenant_id, client_id, company_id, api_base_url)",
+  );
 
   // --- Reconcile any orphaned Vault secret (e.g. from a dev round-trip test) ---
   // If a vault secret named bc_client_secret_{org_id} already exists but the credentials

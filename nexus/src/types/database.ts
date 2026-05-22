@@ -157,6 +157,8 @@ export interface BusinessCentralCredentials {
   client_id: string;
   client_secret_id: string | null;
   default_api_base_url: string | null;
+  company_id: string | null;
+  company_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -647,12 +649,16 @@ export interface Database {
           | "updated_at"
           | "client_secret_id"
           | "default_api_base_url"
+          | "company_id"
+          | "company_name"
         > & {
           id?: string;
           created_at?: string;
           updated_at?: string;
           client_secret_id?: string | null;
           default_api_base_url?: string | null;
+          company_id?: string | null;
+          company_name?: string | null;
         };
         Update: Partial<Omit<BusinessCentralCredentials, "id">>;
       };
