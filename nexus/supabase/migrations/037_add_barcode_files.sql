@@ -23,11 +23,14 @@ CREATE INDEX idx_barcode_files_uploaded_at
 
 ALTER TABLE barcode_files ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated users can view barcode files" ON barcode_files
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Org members view barcode files" ON barcode_files
+  FOR SELECT TO authenticated
+  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
 
-CREATE POLICY "Authenticated users can create barcode files" ON barcode_files
-  FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Org members create barcode files" ON barcode_files
+  FOR INSERT TO authenticated
+  WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
 
-CREATE POLICY "Authenticated users can delete barcode files" ON barcode_files
-  FOR DELETE TO authenticated USING (true);
+CREATE POLICY "Org members delete barcode files" ON barcode_files
+  FOR DELETE TO authenticated
+  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
