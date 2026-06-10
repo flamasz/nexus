@@ -59,6 +59,7 @@ import {
 import { User } from "@/types/database";
 import { Gs1ImportModal } from "@/components/gs1/Gs1ImportModal";
 import { Gs1FieldsPanel } from "@/components/gs1/Gs1FieldsPanel";
+import { BarcodeUploadsPanel } from "@/components/items/BarcodeUploadsPanel";
 import {
   CreateBusinessCentralItemDraft,
   EditableDetailField,
@@ -945,7 +946,7 @@ function DetailPanel({
     { key: "nexus", label: "Nexus fields" },
     { key: "retailer", label: "Retailer / pallet" },
     { key: "audit", label: "Sync & audit" },
-    { key: "gs1", label: "GS1" },
+    { key: "gs1", label: "GTIN" },
   ];
 
   const hasInvalidValues = getValidationErrors(entry).length > 0;
@@ -1085,7 +1086,10 @@ function DetailPanel({
           />
         )}
         {tab === "gs1" && (
-          <Gs1FieldsPanel bcItemId={item.id} canEdit={canEdit} />
+          <div className="space-y-3">
+            <Gs1FieldsPanel bcItemId={item.id} canEdit={canEdit} />
+            <BarcodeUploadsPanel bcItemId={item.id} canEdit={canEdit} />
+          </div>
         )}
       </div>
     </div>
