@@ -79,6 +79,9 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
         setFiles((prev) => (prev ? [created, ...prev] : [created]));
         setUploading((prev) => prev.filter((u) => u.id !== entryId));
       } catch (err) {
+        // If the file reached storage but recording the row failed, remove the
+        // orphaned object so it does not linger unreferenced in the bucket.
+        await supabase.storage.from('packaging-files').remove([storagePath]).catch(() => {});
         setUploading((prev) =>
           prev.map((u) =>
             u.id === entryId
