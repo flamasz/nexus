@@ -333,6 +333,19 @@ export interface FileRecord {
   created_at: string;
 }
 
+export interface BarcodeFile {
+  id: string;
+  business_central_item_id: string;
+  organization_id: string;
+  bc_connection_id: string;
+  file_name: string;
+  file_size: number | null;
+  file_type: string | null;
+  storage_path: string;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
 export interface OrgOrderSettings {
   organization_id: string;
   order_prefix: string;
