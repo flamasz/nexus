@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { File as FileIcon, FileImage, FileText, Loader2, Trash2 } from 'lucide-react';
+import { Download, File as FileIcon, FileImage, FileText, Loader2, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { sanitizeFileName } from '@/lib/utils';
 import { iconNameForExtension, extensionOf } from '@/lib/barcodeFiles';
@@ -10,6 +10,15 @@ import {
   deleteBarcodeFile,
   getBarcodeFiles,
 } from '@/app/actions/barcodeFiles';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { BarcodeDropZone } from './BarcodeDropZone';
 import type { BarcodeFile } from '@/types/database';
 
@@ -39,6 +48,7 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
   const [files, setFiles] = useState<BarcodeFile[] | null>(null);
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<BarcodeFile | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -96,6 +106,26 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
     setTimeout(() => setUploading((prev) => prev.filter((u) => u.status !== 'error')), 5000);
   }
 
+  async function handleDownload(file: BarcodeFile) {
+    const supabase = createClient();
+    const { data, error: downloadError } = await supabase.storage
+      .from('packaging-files')
+      .download(file.storage_path);
+    if (downloadError || !data) {
+      setError('Failed to download file.');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.file_name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   async function handleDelete(id: string) {
     if (!canEdit) return;
     const prev = files;
@@ -134,17 +164,28 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
             >
               <FileTypeIcon ext={file.file_type ?? extensionOf(file.file_name)} />
               <span className="min-w-0 flex-1 break-all text-sm text-foreground">{file.file_name}</span>
-              {canEdit && (
+              <div className="flex shrink-0 items-center gap-1">
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete(file)}
+                    title="Delete file"
+                    aria-label="Delete file"
+                    className="rounded p-1 text-foreground-subtle hover:bg-surface hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => handleDelete(file.id)}
-                  title="Delete file"
-                  aria-label="Delete file"
-                  className="shrink-0 rounded p-1 text-foreground-subtle hover:bg-surface hover:text-destructive"
+                  onClick={() => handleDownload(file)}
+                  title="Download file"
+                  aria-label="Download file"
+                  className="rounded p-1 text-foreground-subtle hover:bg-surface hover:text-primary"
                 >
-                  <Trash2 className="size-4" />
+                  <Download className="size-4" />
                 </button>
-              )}
+              </div>
             </li>
           ))}
           {uploading.map((u) => (
@@ -167,6 +208,37 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
       )}
 
       {canEdit && <BarcodeDropZone onFilesSelected={handleFilesSelected} />}
+
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete barcode file</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this barcode file?
+            </DialogDescription>
+          </DialogHeader>
+          {pendingDelete && (
+            <p className="text-sm text-foreground-muted">
+              <span className="break-all font-medium text-foreground">{pendingDelete.file_name}</span>
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) handleDelete(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Delete file
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
