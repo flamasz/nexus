@@ -27,10 +27,12 @@ interface UploadingFile {
 
 function FileTypeIcon({ ext }: { ext: string }) {
   const name = iconNameForExtension(ext);
-  const className = 'size-5 shrink-0 text-foreground-muted';
-  if (name === 'FileImage') return <FileImage className={className} />;
-  if (name === 'FileText') return <FileText className={className} />;
-  return <FileIcon className={className} />;
+  const base = 'size-5 shrink-0';
+  // Images (png/jpg/jpeg/svg) read as blue, PDFs as red, and the File fallback
+  // (vector formats eps/ai) as orange.
+  if (name === 'FileImage') return <FileImage className={`${base} text-blue-500`} />;
+  if (name === 'FileText') return <FileText className={`${base} text-red-500`} />;
+  return <FileIcon className={`${base} text-orange-500`} />;
 }
 
 export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelProps) {
