@@ -165,6 +165,15 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
               <FileTypeIcon ext={file.file_type ?? extensionOf(file.file_name)} />
               <span className="min-w-0 flex-1 break-all text-sm text-foreground">{file.file_name}</span>
               <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleDownload(file)}
+                  title="Download file"
+                  aria-label="Download file"
+                  className="rounded p-1 text-foreground-subtle hover:bg-surface hover:text-primary"
+                >
+                  <Download className="size-4" />
+                </button>
                 {canEdit && (
                   <button
                     type="button"
@@ -176,15 +185,6 @@ export function BarcodeUploadsPanel({ bcItemId, canEdit }: BarcodeUploadsPanelPr
                     <Trash2 className="size-4" />
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleDownload(file)}
-                  title="Download file"
-                  aria-label="Download file"
-                  className="rounded p-1 text-foreground-subtle hover:bg-surface hover:text-primary"
-                >
-                  <Download className="size-4" />
-                </button>
               </div>
             </li>
           ))}
