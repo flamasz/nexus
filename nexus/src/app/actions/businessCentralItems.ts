@@ -1,6 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getCategories } from '@/app/actions/categories';
+import { getItemNames } from '@/app/actions/itemNames';
+import { getPackagingItemCombos } from '@/app/actions/orders';
+import { getProductLines } from '@/app/actions/productLines';
 
 import { requireOrganizationContext, requirePermission } from '@/lib/auth/currentUserAccess';
 import { ResolvedUserAccess } from '@/lib/auth/permissions';
@@ -26,6 +30,10 @@ import {
   BusinessCentralItemDetails,
   BusinessCentralItemSyncEvent,
   BusinessCentralReferenceRow,
+  Category,
+  ItemName,
+  PackagingItemCombo,
+  ProductLine,
 } from '@/types/database';
 import {
   BusinessCentralItemWithDetails,
@@ -43,9 +51,14 @@ const MAX_SYNC_PULL_ITEMS = 10_000;
 type SupabaseClient = ReturnType<typeof createServiceClient>;
 
 export interface BusinessCentralItemsPageData extends BusinessCentralConnectionStatusData {
+  activeConnectionId: string | null;
   items: BusinessCentralItemWithDetails[];
   events: BusinessCentralSyncEvent[];
   references: BusinessCentralReferenceData;
+  itemNames: ItemName[];
+  categories: Category[];
+  packagingItemCombos: PackagingItemCombo[];
+  productLines: ProductLine[];
 }
 
 export interface SaveBusinessCentralItemLocalInput {
@@ -99,18 +112,27 @@ export async function getBusinessCentralItemsPageData(): Promise<BusinessCentral
   const { orgId, user } = await requireBcView();
   const supabase = createServiceClient();
   const connection = await resolveActiveBcConnection(orgId, user.id);
-  const [items, events, references] = await Promise.all([
-    getItemsWithDetails(supabase, orgId),
+  const [items, events, references, itemNames, categories, packagingItemCombos, productLines] = await Promise.all([
+    getItemsWithDetails(supabase, orgId, connection?.id ?? null),
     getRecentEvents(supabase, orgId),
-    getReferenceData(supabase, orgId),
+    getReferenceData(supabase, orgId, connection?.id ?? null),
+    getItemNames(),
+    getCategories(),
+    getPackagingItemCombos(),
+    getProductLines(),
   ]);
 
   return {
+    activeConnectionId: connection?.id ?? null,
     items,
     events,
     connection: toConnectionState(connection),
     syncProgress: toSyncProgress(connection),
     references,
+    itemNames,
+    categories,
+    packagingItemCombos,
+    productLines,
   };
 }
 
@@ -210,8 +232,7 @@ export async function syncBusinessCentralItems(options: { full?: boolean } = {})
 
   try {
     await refreshReferenceDataForConnection(supabase, orgId, connection, now);
-    const activeConnection = await resolveActiveBcConnection(orgId, user.id);
-    const client = await createBcClientForOrg(orgId, activeConnection?.id);
+    const client = await createBcClientForOrg(orgId, connection.id);
     const filter = !options.full && connection.last_pulled_at ? `lastModifiedDateTime gt ${connection.last_pulled_at}` : undefined;
     const response = await client.listAllItems({ pageSize: BC_SYNC_PAGE_SIZE, maxItems: MAX_SYNC_PULL_ITEMS, filter });
     let imported = 0;
@@ -227,7 +248,7 @@ export async function syncBusinessCentralItems(options: { full?: boolean } = {})
       });
       const { data: itemRow, error } = await supabase
         .from('business_central_items')
-        .upsert(upsertPayload, { onConflict: 'organization_id,bc_company_id,bc_item_id' })
+        .upsert(upsertPayload, { onConflict: 'organization_id,bc_connection_id,bc_company_id,bc_item_id' })
         .select('*')
         .single();
       if (error) throw error;
@@ -268,8 +289,9 @@ export async function syncBusinessCentralItems(options: { full?: boolean } = {})
 export async function saveBusinessCentralItemLocal(input: SaveBusinessCentralItemLocalInput): Promise<void> {
   const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
+  const connection = await requireConnection(orgId, user.id);
   const now = new Date().toISOString();
-  await ensureItemBelongsToOrg(supabase, input.itemId, orgId);
+  await ensureItemBelongsToOrg(supabase, input.itemId, orgId, connection.id);
 
   const itemUpdate = {
     ...input.item,
@@ -294,7 +316,12 @@ export async function saveBusinessCentralItemLocal(input: SaveBusinessCentralIte
     now,
   });
 
-  await supabase.from('business_central_items').update(itemUpdate).eq('id', input.itemId).eq('organization_id', orgId);
+  await supabase
+    .from('business_central_items')
+    .update(itemUpdate)
+    .eq('id', input.itemId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connection.id);
   await supabase.from('business_central_item_details').upsert(detailUpdate, { onConflict: 'item_id' });
   await recordEvent(supabase, {
     organization_id: orgId,
@@ -312,10 +339,16 @@ export async function saveBusinessCentralItemLocal(input: SaveBusinessCentralIte
 }
 
 export async function markBusinessCentralItemReadyToPush(itemId: string): Promise<void> {
-  const { orgId } = await requireBcEdit();
+  const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
-  await ensureItemBelongsToOrg(supabase, itemId, orgId);
-  await supabase.from('business_central_items').update({ sync_status: 'unpushed', updated_at: new Date().toISOString() }).eq('id', itemId).eq('organization_id', orgId);
+  const connection = await requireConnection(orgId, user.id);
+  await ensureItemBelongsToOrg(supabase, itemId, orgId, connection.id);
+  await supabase
+    .from('business_central_items')
+    .update({ sync_status: 'unpushed', updated_at: new Date().toISOString() })
+    .eq('id', itemId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connection.id);
   revalidatePath('/items');
 }
 
@@ -323,9 +356,9 @@ export async function pushBusinessCentralItem(itemId: string): Promise<BusinessC
   const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
   const now = new Date().toISOString();
-  const row = await getBusinessCentralItemRow(supabase, itemId, orgId);
-  const activeConnection = await resolveActiveBcConnection(orgId, user.id);
-  const client = await createBcClientForOrg(orgId, activeConnection?.id);
+  const activeConnection = await requireConnection(orgId, user.id);
+  const row = await getBusinessCentralItemRow(supabase, itemId, orgId, activeConnection.id);
+  const client = await createBcClientForOrg(orgId, activeConnection.id);
 
   let pushedEntry: BusinessCentralItemWithDetails | null = null;
 
@@ -427,8 +460,7 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
   let createdEntry: BusinessCentralItemWithDetails | null = null;
 
   try {
-    const activeConnection = await resolveActiveBcConnection(orgId, user.id);
-    const client = await createBcClientForOrg(orgId, activeConnection?.id);
+    const client = await createBcClientForOrg(orgId, connection.id);
     const created = await client.createItem(buildBcCreatePayload(draft));
     const createPayload = {
       ...mapBcItemToDb({
@@ -447,7 +479,7 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
     };
     const { data: row, error } = await supabase
       .from('business_central_items')
-      .upsert(createPayload, { onConflict: 'organization_id,bc_company_id,bc_item_id' })
+      .upsert(createPayload, { onConflict: 'organization_id,bc_connection_id,bc_company_id,bc_item_id' })
       .select('*')
       .single();
     if (error) throw error;
@@ -480,14 +512,14 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
 export async function deleteBusinessCentralItem(itemId: string, confirmation: string): Promise<void> {
   const { orgId, user } = await requireBcEdit();
   const supabase = createServiceClient();
-  const row = await getBusinessCentralItemRow(supabase, itemId, orgId);
+  const activeConnection = await requireConnection(orgId, user.id);
+  const row = await getBusinessCentralItemRow(supabase, itemId, orgId, activeConnection.id);
   const expected = row.bc_item_number ?? row.display_name;
   if (confirmation !== expected) throw new Error('Delete confirmation did not match the BC item number');
   const now = new Date().toISOString();
 
   try {
-    const activeConnection = await resolveActiveBcConnection(orgId, user.id);
-    const client = await createBcClientForOrg(orgId, activeConnection?.id);
+    const client = await createBcClientForOrg(orgId, activeConnection.id);
     try {
       await client.deleteItem(row.bc_item_id, row.bc_etag ?? '*');
     } catch (error) {
@@ -511,7 +543,8 @@ export async function deleteBusinessCentralItem(itemId: string, confirmation: st
       .from('business_central_items')
       .delete()
       .eq('id', itemId)
-      .eq('organization_id', orgId);
+      .eq('organization_id', orgId)
+    .eq('bc_connection_id', row.bc_connection_id);
     if (deleteError) throw deleteError;
   } catch (error) {
     await markItemFailed(supabase, row, error, 'delete', user.id, user.display_name, now);
@@ -603,7 +636,7 @@ async function refreshReferenceDataForConnection(
 
   await Promise.all([
     ...BUSINESS_CENTRAL_REFERENCE_RESOURCES.map((resource) =>
-      markReferenceRowsInactive(supabase, resource.table, orgId, now)
+      markReferenceRowsInactive(supabase, resource.table, orgId, connection.id, now)
     ),
   ]);
 
@@ -611,8 +644,8 @@ async function refreshReferenceDataForConnection(
     if (!response.value.length) continue;
     const { error } = await supabase
       .from(resource.table)
-      .upsert(response.value.map((row) => resource.toDbRow(orgId, row, now)), {
-        onConflict: 'organization_id,bc_id',
+      .upsert(response.value.map((row) => ({ ...resource.toDbRow(orgId, row, now), bc_connection_id: connection.id })), {
+        onConflict: 'organization_id,bc_connection_id,bc_id',
       });
     if (error) throw error;
   }
@@ -632,20 +665,22 @@ async function markReferenceRowsInactive(
   supabase: SupabaseClient,
   table: BusinessCentralReferenceTable,
   orgId: string,
+  connectionId: string,
   now: string
 ): Promise<void> {
   const { error } = await supabase
     .from(table)
     .update({ is_active: false, updated_at: now })
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connectionId);
   if (error) throw error;
 }
 
-async function getReferenceData(supabase: SupabaseClient, orgId: string): Promise<BusinessCentralReferenceData> {
+async function getReferenceData(supabase: SupabaseClient, orgId: string, connectionId: string | null): Promise<BusinessCentralReferenceData> {
   const entries = await Promise.all(
     BUSINESS_CENTRAL_REFERENCE_RESOURCES.map(async (resource) => [
       resource.key,
-      await getReferenceRows(supabase, resource.table, orgId),
+      await getReferenceRows(supabase, resource.table, orgId, connectionId),
     ] as const)
   );
   return Object.fromEntries(entries) as unknown as BusinessCentralReferenceData;
@@ -654,12 +689,15 @@ async function getReferenceData(supabase: SupabaseClient, orgId: string): Promis
 async function getReferenceRows(
   supabase: SupabaseClient,
   table: BusinessCentralReferenceTable,
-  orgId: string
+  orgId: string,
+  connectionId: string | null
 ): Promise<BusinessCentralReferenceItem[]> {
+  if (!connectionId) return [];
   const { data, error } = await supabase
     .from(table)
     .select('bc_id, code, display_name, is_active')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', connectionId)
     .order('is_active', { ascending: false })
     .order('code', { ascending: true });
   if (error) throw error;
@@ -671,11 +709,19 @@ async function getReferenceRows(
   }));
 }
 
-async function getItemsWithDetails(supabase: SupabaseClient, orgId: string): Promise<BusinessCentralItemWithDetails[]> {
+async function getItemsWithDetails(
+  supabase: SupabaseClient,
+  orgId: string,
+  connectionId: string | null,
+): Promise<BusinessCentralItemWithDetails[]> {
+  // With no active environment there is nothing to scope items to.
+  if (!connectionId) return [];
+
   const { data, error } = await supabase
     .from('business_central_items')
     .select('*, details:business_central_item_details(*)')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', connectionId)
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as Array<BusinessCentralItem & { details: BusinessCentralItemDetails | null }>).map(mapDbItemWithDetailsToUi);
@@ -692,8 +738,14 @@ async function getRecentEvents(supabase: SupabaseClient, orgId: string): Promise
   return ((data ?? []) as BusinessCentralItemSyncEvent[]).map(mapDbSyncEventToUi);
 }
 
-async function getBusinessCentralItemRow(supabase: SupabaseClient, itemId: string, orgId: string): Promise<BusinessCentralItem> {
-  const { data, error } = await supabase.from('business_central_items').select('*').eq('id', itemId).eq('organization_id', orgId).single();
+async function getBusinessCentralItemRow(supabase: SupabaseClient, itemId: string, orgId: string, connectionId: string): Promise<BusinessCentralItem> {
+  const { data, error } = await supabase
+    .from('business_central_items')
+    .select('*')
+    .eq('id', itemId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connectionId)
+    .single();
   if (error) throw error;
   return data as BusinessCentralItem;
 }
@@ -708,8 +760,8 @@ async function getBusinessCentralItemDetailsRow(supabase: SupabaseClient, itemId
   return (data as BusinessCentralItemDetails | null) ?? buildItemDetails({ itemId, now: new Date().toISOString() });
 }
 
-async function ensureItemBelongsToOrg(supabase: SupabaseClient, itemId: string, orgId: string): Promise<void> {
-  await getBusinessCentralItemRow(supabase, itemId, orgId);
+async function ensureItemBelongsToOrg(supabase: SupabaseClient, itemId: string, orgId: string, connectionId: string): Promise<void> {
+  await getBusinessCentralItemRow(supabase, itemId, orgId, connectionId);
 }
 
 async function markItemFailed(

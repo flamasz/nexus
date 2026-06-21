@@ -213,7 +213,10 @@ export function mapReferenceToDb<T extends { id: string; code: string; displayNa
   };
 }
 
-export function buildBcPatchPayload(item: BusinessCentralItem): BcItemPatchPayload {
+export function buildBcPatchPayload(
+  item: BusinessCentralItem,
+  options: { includeUnitCost?: boolean } = {},
+): BcItemPatchPayload {
   return removeUndefined({
     displayName: item.display_name,
     displayName2: item.display_name_2 ?? undefined,
@@ -222,7 +225,7 @@ export function buildBcPatchPayload(item: BusinessCentralItem): BcItemPatchPaylo
     gtin: item.gtin ?? undefined,
     unitPrice: item.unit_price ?? undefined,
     priceIncludesTax: item.price_includes_tax,
-    unitCost: item.unit_cost ?? undefined,
+    unitCost: options.includeUnitCost ? item.unit_cost ?? undefined : undefined,
     taxGroupCode: item.tax_group_code ?? undefined,
     ...referencePatch('baseUnitOfMeasure', item.base_unit_of_measure_id, item.base_unit_of_measure_code),
     ...referencePatch('generalProductPostingGroup', item.general_product_posting_group_id, item.general_product_posting_group_code),
@@ -231,7 +234,7 @@ export function buildBcPatchPayload(item: BusinessCentralItem): BcItemPatchPaylo
 }
 
 export function buildBcCreatePayload(item: BusinessCentralItem): BcItemCreatePayload {
-  const payload = buildBcPatchPayload(item) as BcItemCreatePayload;
+  const payload = buildBcPatchPayload(item, { includeUnitCost: true }) as BcItemCreatePayload;
   if (item.bc_item_number && item.bc_item_number.length <= 20) {
     payload.number = item.bc_item_number;
   }

@@ -338,6 +338,38 @@ export async function setDefaultBcConnection(id: string): Promise<void> {
 }
 
 /**
+ * Switches the acting user's active BC environment. Any authenticated user may
+ * switch their own environment — this is NOT admin-gated. Mirrors
+ * `switchOrganization()`: validates the target belongs to the user's current
+ * org, writes the per-user pointer, and revalidates the affected paths.
+ */
+export async function switchBcEnvironment(connectionId: string): Promise<void> {
+  const { user, orgId } = await requireOrganizationContext();
+  const supabase = createServiceClient();
+  const now = new Date().toISOString();
+
+  const { data: connection, error: connectionError } = await supabase
+    .from('business_central_connections')
+    .select('id')
+    .eq('id', connectionId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (connectionError) throw connectionError;
+  if (!connection) {
+    throw new Error('Business Central environment not found for this organization');
+  }
+
+  const { error } = await supabase
+    .from('users')
+    .update({ active_bc_connection_id: connectionId, updated_at: now })
+    .eq('id', user.id);
+  if (error) throw new Error('Failed to switch Business Central environment');
+
+  revalidatePath('/items');
+  revalidatePath('/', 'layout');
+}
+
+/**
  * Verifies a single BC environment connection by hitting the BC API, then
  * records the outcome on that connection's row only.
  */

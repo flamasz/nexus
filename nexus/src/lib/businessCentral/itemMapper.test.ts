@@ -140,7 +140,7 @@ describe('itemMapper', () => {
     });
   });
 
-  it('builds PATCH payloads without Nexus-only or read-only fields', () => {
+  it('builds PATCH payloads without Nexus-only, read-only, or locked accounting fields', () => {
     const item = {
       display_name: 'Updated',
       item_category_code: 'CHOC-FG',
@@ -148,7 +148,7 @@ describe('itemMapper', () => {
       gtin: null,
       unit_price: 10,
       price_includes_tax: false,
-      unit_cost: null,
+      unit_cost: 4.25,
       tax_group_code: 'TAXABLE',
       base_unit_of_measure_code: 'BOX',
       general_product_posting_group_id: 'gppg-id',
@@ -177,6 +177,7 @@ describe('itemMapper', () => {
       type: 'Inventory',
       blocked: false,
       price_includes_tax: false,
+      unit_cost: 4.25,
     } as BusinessCentralItem;
 
     expect(buildBcCreatePayload(base)).toEqual({
@@ -184,6 +185,7 @@ describe('itemMapper', () => {
       type: 'Inventory',
       blocked: false,
       priceIncludesTax: false,
+      unitCost: 4.25,
     });
   });
 

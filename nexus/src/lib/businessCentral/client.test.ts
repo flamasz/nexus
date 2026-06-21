@@ -162,9 +162,14 @@ interface SupaMockOptions {
 }
 
 function makeQueryChain(result: { data: unknown; error: { message: string } | null }) {
-  const chain = {
-    select: (): typeof chain => chain,
-    eq: (): typeof chain => chain,
+  type QueryChain = {
+    select: () => QueryChain;
+    eq: () => QueryChain;
+    maybeSingle: () => Promise<typeof result>;
+  };
+  const chain: QueryChain = {
+    select: () => chain,
+    eq: () => chain,
     maybeSingle: async () => result,
   };
   return chain;
