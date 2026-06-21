@@ -110,6 +110,7 @@ export interface OrgMemberWithOrg extends OrgMember {
 export interface Category {
   id: string;
   name: string;
+  bc_connection_id: string | null;
   width: number | null;
   height: number | null;
   depth: number | null;
@@ -123,6 +124,7 @@ export interface Category {
 export interface ProductLine {
   id: string;
   name: string;
+  bc_connection_id: string | null;
   organization_id: string | null;
   created_at: string;
 }
@@ -130,6 +132,7 @@ export interface ProductLine {
 export interface ItemName {
   id: string;
   name: string;
+  bc_connection_id: string | null;
   organization_id: string | null;
   created_at: string;
   updated_at: string;
@@ -138,6 +141,7 @@ export interface ItemName {
 export interface Item {
   id: string;
   item_name_id: string;
+  bc_connection_id: string | null;
   category_id: string | null;
   product_line_id: string | null;
   version: string | null;
@@ -186,6 +190,7 @@ export interface BusinessCentralConnection {
 export interface BusinessCentralReferenceRow {
   id: string;
   organization_id: string;
+  bc_connection_id: string | null;
   bc_id: string;
   code: string;
   display_name: string;
@@ -305,9 +310,49 @@ export interface ItemWithCategory extends Item {
   product_line: ProductLine | null;
 }
 
+export interface PackagingItemCombo {
+  id: string;
+  item_name_id: string;
+  category_id: string;
+  item_name: ItemName;
+  category: Category;
+  latest_item_id: string;
+  latest_version: string | null;
+  business_central_item_id: string | null;
+}
+
+export interface PurchaseVersionTarget {
+  itemId: string;
+  itemNameId: string;
+  categoryId: string;
+  productLineId: string | null;
+  version: string | null;
+  label: string;
+  status: ItemStatus;
+  updatedAt: string;
+  itemName: ItemName;
+  category: Category;
+  productLine: ProductLine | null;
+}
+
+export interface LinkedPurchaseTargets {
+  businessCentralItemRowId: string;
+  linkedCombo: PackagingItemCombo | null;
+  itemNameId: string | null;
+  categoryId: string | null;
+  targets: PurchaseVersionTarget[];
+}
+
+export interface PurchaseReferenceData {
+  itemNames: ItemName[];
+  categories: Category[];
+  packagingItemCombos: PackagingItemCombo[];
+}
+
 export interface UploadSession {
   id: string;
   packaging_id: string;
+  bc_connection_id: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
   notes: string | null;
@@ -358,6 +403,7 @@ export interface OrgOrderSettings {
 export interface PurchaseOrder {
   id: string;
   organization_id: string;
+  bc_connection_id: string | null;
   order_number: string;
   order_sequence: number;
   order_date: string;
@@ -406,6 +452,7 @@ export interface PurchaseOrderWithItems extends PurchaseOrder {
 export interface PurchaseInvoice {
   id: string;
   organization_id: string;
+  bc_connection_id: string | null;
   invoice_party: InvoiceParty;
   counterparty_name: string | null;
   invoice_number: string;
@@ -489,27 +536,30 @@ export interface Database {
       };
       categories: {
         Row: Category;
-        Insert: Omit<Category, "id" | "created_at" | "updated_at"> & {
+        Insert: Omit<Category, "id" | "created_at" | "updated_at" | "bc_connection_id"> & {
           id?: string;
           created_at?: string;
           updated_at?: string;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<Category, "id">>;
       };
       product_lines: {
         Row: ProductLine;
-        Insert: Omit<ProductLine, "id" | "created_at"> & {
+        Insert: Omit<ProductLine, "id" | "created_at" | "bc_connection_id"> & {
           id?: string;
           created_at?: string;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<ProductLine, "id">>;
       };
       item_names: {
         Row: ItemName;
-        Insert: Omit<ItemName, "id" | "created_at" | "updated_at"> & {
+        Insert: Omit<ItemName, "id" | "created_at" | "updated_at" | "bc_connection_id"> & {
           id?: string;
           created_at?: string;
           updated_at?: string;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<ItemName, "id">>;
       };
@@ -525,6 +575,7 @@ export interface Database {
           | "version"
           | "status"
           | "bc_item_id"
+          | "bc_connection_id"
         > & {
           id?: string;
           created_at?: string;
@@ -534,6 +585,7 @@ export interface Database {
           version?: string | null;
           status?: ItemStatus;
           bc_item_id?: string | null;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<Item, "id">>;
       };
@@ -541,13 +593,14 @@ export interface Database {
         Row: UploadSession;
         Insert: Omit<
           UploadSession,
-          "id" | "created_at" | "updated_at" | "uploaded_at" | "status"
+          "id" | "created_at" | "updated_at" | "uploaded_at" | "status" | "bc_connection_id"
         > & {
           id?: string;
           created_at?: string;
           updated_at?: string;
           uploaded_at?: string;
           status?: UploadStatus;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<UploadSession, "id">>;
       };
@@ -569,11 +622,13 @@ export interface Database {
           | "order_number"
           | "order_sequence"
           | "archived"
+          | "bc_connection_id"
         > & {
           id?: string;
           created_at?: string;
           updated_at?: string;
           archived?: boolean;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<PurchaseOrder, "id">>;
       };
@@ -623,12 +678,13 @@ export interface Database {
         Row: PurchaseInvoice;
         Insert: Omit<
           PurchaseInvoice,
-          "id" | "created_at" | "updated_at" | "status"
+          "id" | "created_at" | "updated_at" | "status" | "bc_connection_id"
         > & {
           id?: string;
           created_at?: string;
           updated_at?: string;
           status?: InvoiceStatus;
+          bc_connection_id?: string | null;
         };
         Update: Partial<Omit<PurchaseInvoice, "id">>;
       };
