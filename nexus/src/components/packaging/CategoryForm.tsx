@@ -128,6 +128,7 @@ export function CategoryForm({
 
   return (
     <div 
+      data-nested-dropdown-root="true"
       className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
       style={{ zIndex }}
     >

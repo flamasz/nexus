@@ -349,6 +349,19 @@
   .po-table-zoom .po-col-overrun-percent {
     width: var(--po-col-overrun-percent);
   }
+  .po-table-zoom .po-col-overrun-accepted {
+    width: var(--po-col-overrun-accepted);
+  }
+  .po-table-zoom .po-overrun-accepted-col {
+    margin-left: var(--po-table-gap-tight);
+  }
+  .po-table-zoom .po-overrun-accepted-col + .po-gap {
+    margin-left: var(--po-table-gap-tight);
+  }
+  .po-table-zoom .po-overrun-accepted-toggle {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
   .po-table-zoom .po-col-version {
     width: var(--po-col-version);
   }

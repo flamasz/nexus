@@ -55,19 +55,23 @@ interface Gs1FieldsPanelProps {
 }
 
 export function Gs1FieldsPanel({ bcItemId, canEdit }: Gs1FieldsPanelProps) {
-  const [data, setData] = useState<LinkedGs1Data | null | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [linkedState, setLinkedState] = useState<{
+    bcItemId: string;
+    data: LinkedGs1Data | null | undefined;
+    error: string | null;
+  }>({ bcItemId, data: undefined, error: null });
   const [isPending, startTransition] = useTransition();
 
+  const data = linkedState.bcItemId === bcItemId ? linkedState.data : undefined;
+  const error = linkedState.bcItemId === bcItemId ? linkedState.error : null;
+
   useEffect(() => {
-    setData(undefined);
-    setError(null);
     startTransition(async () => {
       try {
         const result = await getLinkedGs1Product(bcItemId);
-        setData(result);
+        setLinkedState({ bcItemId, data: result, error: null });
       } catch {
-        setError("Failed to load GS1 data.");
+        setLinkedState({ bcItemId, data: null, error: "Failed to load GS1 data." });
       }
     });
   }, [bcItemId]);
@@ -77,9 +81,9 @@ export function Gs1FieldsPanel({ bcItemId, canEdit }: Gs1FieldsPanelProps) {
     startTransition(async () => {
       try {
         await unlinkGs1Match(data.product.id, bcItemId);
-        setData(null);
+        setLinkedState({ bcItemId, data: null, error: null });
       } catch {
-        setError("Failed to unlink.");
+        setLinkedState({ bcItemId, data, error: "Failed to unlink." });
       }
     });
   }

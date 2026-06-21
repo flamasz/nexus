@@ -312,6 +312,7 @@ export function ItemNameCombobox({
           {isOpen && typeof document !== 'undefined' && createPortal(
             <div 
               ref={dropdownRef}
+              data-nested-dropdown-root="true"
               className="fixed bg-surface-overlay border border-border rounded-md shadow-lg flex flex-col overflow-hidden"
               style={{
                 top: dropdownPosition.top,
