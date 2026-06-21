@@ -1,7 +1,7 @@
 import { getBusinessCentralItemsPageData } from "@/app/actions/businessCentralItems";
 import { getCurrentUser } from "@/app/actions/users";
 import { ItemsClient } from "@/components/items/ItemsClient";
-import { User } from "@/types/database";
+import { Category, ItemName, PackagingItemCombo, ProductLine, User } from "@/types/database";
 import {
   mockConnectionStates,
   mockItems,
@@ -44,7 +44,7 @@ export default async function ItemsPage({
   }
 
   const data = await getItemsPageDataOrError();
-  return <ItemsClient {...data} initialUser={user} />;
+  return <ItemsClient key={data.activeConnectionId ?? 'no-active-bc-env'} {...data} initialUser={user} />;
 }
 
 async function getItemsPageDataOrError() {
@@ -53,6 +53,7 @@ async function getItemsPageDataOrError() {
   } catch (error) {
     console.error("Failed to load Business Central items page data:", error);
     return {
+      activeConnectionId: null,
       items: [],
       events: [],
       connection: {
@@ -69,6 +70,10 @@ async function getItemsPageDataOrError() {
       },
       syncProgress: mockSyncProgress,
       references: mockReferenceData,
+      itemNames: [],
+      categories: [],
+      packagingItemCombos: [],
+      productLines: [],
     };
   }
 }
@@ -85,6 +90,10 @@ function DemoItemsPage({
   let events = mockSyncEvents;
   let syncProgress: SyncProgressState = mockSyncProgress;
   const references = mockReferenceData;
+  const itemNames: ItemName[] = [];
+  const categories: Category[] = [];
+  const packagingItemCombos: PackagingItemCombo[] = [];
+  const productLines: ProductLine[] = [];
   let isLoading = false;
 
   switch (demoState) {
@@ -124,6 +133,10 @@ function DemoItemsPage({
       connection={connection}
       syncProgress={syncProgress}
       references={references}
+      itemNames={itemNames}
+      categories={categories}
+      packagingItemCombos={packagingItemCombos}
+      productLines={productLines}
       initialUser={user}
       isLoading={isLoading}
     />
