@@ -13,12 +13,11 @@ import {
   unassignInvoiceFromOrderItem,
 } from '@/app/actions/invoices';
 import { PurchaseInvoiceEditModal } from '@/components/invoices/InvoicesClient';
-import { CategorySelector } from '@/components/packaging/CategorySelector';
-import { ItemNameCombobox } from '@/components/packaging/ItemNameCombobox';
 import { ItemStatusDropdown } from '@/components/packaging/ItemStatusDropdown';
 import { VersionCombobox } from '@/components/packaging/VersionCombobox';
 import { ITEM_STATUS_CONFIG } from '@/lib/itemStatus';
 import { getAnchoredDropdownPosition } from '@/lib/dropdownPosition';
+import { cn } from '@/lib/utils';
 import {
   Category,
   InvoiceOption,
@@ -28,10 +27,12 @@ import {
   ItemStatus,
   OrderItemInvoicePatch,
   OrderItemWithDetails,
+  PackagingItemCombo,
   PurchaseInvoice,
   PurchaseInvoiceWithAssignedItems,
 } from '@/types/database';
 import { ItemOrderStatusDropdown } from './ItemOrderStatusDropdown';
+import { PackagingItemCombobox } from './PackagingItemCombobox';
 import { PriorityDropdown } from './PriorityDropdown';
 import { calculateOverrunPercent } from '@/lib/orderItemQuantityDefaults';
 
@@ -45,6 +46,7 @@ interface OrderItemRowProps {
   orderItem: OrderItemWithDetails;
   itemNames: ItemName[];
   categories: Category[];
+  packagingItemCombos: PackagingItemCombo[];
   invoiceOptions: InvoiceOption[];
   onInvoiceOptionsChange: (options: InvoiceOption[]) => void;
   artworkStatus?: string;
@@ -57,8 +59,9 @@ interface OrderItemRowProps {
   onInvoicePatch: (patch: OrderItemInvoicePatch) => void;
   onCreateItemName: (name: string) => Promise<ItemName>;
   onUpdateItemName: (id: string, name: string) => Promise<ItemName>;
-  onCreateCategory: (prefillName?: string) => void;
+  onCreateCategory: (prefillName?: string, onCreated?: (category: Category) => void) => void;
   onEditCategory?: (category: Category) => void;
+  onCreatePackagingItemCombo: (itemNameId: string, categoryId: string) => Promise<PackagingItemCombo>;
   onUpdatePackagingItemStatus?: (itemId: string, status: ItemStatus) => Promise<void>;
   onCreatePackagingItem?: (itemNameId: string, categoryId: string, version: string) => Promise<void>;
 }
@@ -129,11 +132,13 @@ function CompactQuantityInput({
   value,
   disabled,
   className = 'po-col-qty',
+  inputClassName,
   onCommit,
 }: {
   value: number | null;
   disabled: boolean;
   className?: string;
+  inputClassName?: string;
   onCommit: (value: number | null) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(formatQuantity(value));
@@ -228,8 +233,55 @@ function CompactQuantityInput({
       placeholder="—"
       readOnly={disabled}
       disabled={pending}
-      className={`${className} po-gap shrink-0 border border-border rounded text-xs bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-ring text-right read-only:cursor-default read-only:opacity-70 disabled:opacity-50`}
+      className={cn(
+        className,
+        'po-gap shrink-0 border border-border rounded text-xs bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-ring text-right read-only:cursor-default read-only:opacity-70 disabled:opacity-50',
+        inputClassName
+      )}
     />
+  );
+}
+
+function OverrunAcceptedToggle({
+  accepted,
+  disabled,
+  onToggle,
+}: {
+  accepted: boolean;
+  disabled: boolean;
+  onToggle: () => Promise<void>;
+}) {
+  const [pending, setPending] = useState(false);
+
+  const handleClick = async () => {
+    if (disabled || pending) return;
+
+    setPending(true);
+    try {
+      await onToggle();
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="po-col-overrun-accepted po-overrun-accepted-col flex shrink-0 justify-center">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={disabled || pending}
+        aria-pressed={accepted}
+        className={cn(
+          'po-overrun-accepted-toggle inline-flex shrink-0 justify-center rounded-full border px-2 py-0.5 text-center text-[11px] font-medium transition-colors',
+          accepted
+            ? 'border-green-500/30 bg-green-500/15 text-green-700 hover:bg-green-500/25 dark:text-green-300'
+            : 'border-amber-500/30 bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-300',
+          disabled || pending ? 'cursor-default opacity-50' : 'cursor-pointer'
+        )}
+      >
+        {accepted ? 'Accepted' : 'Pending'}
+      </button>
+    </div>
   );
 }
 
@@ -509,6 +561,7 @@ export function OrderItemRow({
   orderItem,
   itemNames,
   categories,
+  packagingItemCombos,
   invoiceOptions,
   onInvoiceOptionsChange,
   packagingItemId,
@@ -522,6 +575,7 @@ export function OrderItemRow({
   onUpdateItemName,
   onCreateCategory,
   onEditCategory,
+  onCreatePackagingItemCombo,
   onUpdatePackagingItemStatus,
   onCreatePackagingItem,
 }: OrderItemRowProps) {
@@ -555,9 +609,11 @@ export function OrderItemRow({
 
   const localNotes = localNotesOverride ?? (orderItem.notes ?? '');
   const localQty = localQtyOverride ?? (orderItem.order_qty ? orderItem.order_qty.toLocaleString() : '');
+  const effectiveItemNameId = orderItem.item_name_id;
+  const effectiveCategoryId = orderItem.category_id;
 
-  const shouldFetchVersions = Boolean(orderItem.item_name_id && orderItem.category_id);
-  const versionKey = shouldFetchVersions ? `${orderItem.item_name_id}-${orderItem.category_id}` : null;
+  const shouldFetchVersions = Boolean(effectiveItemNameId && effectiveCategoryId);
+  const versionKey = shouldFetchVersions ? `${effectiveItemNameId}-${effectiveCategoryId}` : null;
 
   if (versionKey !== prevVersionKey.current) {
     if (!versionKey && versions.length > 0) {
@@ -567,15 +623,15 @@ export function OrderItemRow({
   }
 
   useEffect(() => {
-    if (!orderItem.item_name_id || !orderItem.category_id) return;
+    if (!effectiveItemNameId || !effectiveCategoryId) return;
 
     let cancelled = false;
     const controller = new AbortController();
 
     async function loadVersions() {
       const params = new URLSearchParams({
-        itemNameId: orderItem.item_name_id!,
-        categoryId: orderItem.category_id!,
+        itemNameId: effectiveItemNameId!,
+        categoryId: effectiveCategoryId!,
       });
       const response = await fetch(`/api/order-item-versions?${params.toString()}`, {
         signal: controller.signal,
@@ -602,7 +658,7 @@ export function OrderItemRow({
       cancelled = true;
       controller.abort();
     };
-  }, [orderItem.item_name_id, orderItem.category_id]);
+  }, [effectiveItemNameId, effectiveCategoryId]);
 
   const update = useCallback(
     async (patch: Partial<OrderItemWithDetails>) => {
@@ -770,31 +826,27 @@ export function OrderItemRow({
       </div>
 
       <div className={`po-col-item po-gap shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
-        <ItemNameCombobox
+        <PackagingItemCombobox
+          combos={packagingItemCombos}
           itemNames={itemNames}
-          selectedId={orderItem.item_name_id}
-          onSelect={(id) => {
-            if (!canEditOrderFields) return;
-            update({ item_name_id: id, version: null, category_id: null });
-          }}
-          onCreate={onCreateItemName}
-          onUpdate={onUpdateItemName}
-          required={false}
-          variant="compact"
-        />
-      </div>
-
-      <div className={`po-col-category po-gap shrink-0 ${disableWrapper(!canEditOrderFields)}`}>
-        <CategorySelector
           categories={categories}
-          selectedId={orderItem.category_id}
-          onSelect={(id) => {
+          selectedItemNameId={orderItem.item_name_id}
+          selectedCategoryId={orderItem.category_id}
+          onSelect={(combo) => {
             if (!canEditOrderFields) return;
-            update({ category_id: id, version: null });
+            update({
+              item_name_id: combo?.item_name_id ?? null,
+              category_id: combo?.category_id ?? null,
+              version: null,
+            });
           }}
-          onCreateNew={onCreateCategory}
-          onEdit={canEditOrderFields ? onEditCategory : undefined}
-          variant="compact"
+          onCreateItemName={onCreateItemName}
+          onUpdateItemName={onUpdateItemName}
+          onCreateCategory={onCreateCategory}
+          onEditCategory={onEditCategory}
+          onCreateCombination={onCreatePackagingItemCombo}
+          showDropdownEditAction
+          disabled={!canEditOrderFields}
         />
       </div>
 
@@ -827,7 +879,18 @@ export function OrderItemRow({
       <CompactQuantityInput
         value={orderItem.accept_qty}
         disabled={!canEditOrderFields}
+        inputClassName={
+          orderItem.overrun_accepted
+            ? 'border-green-500/30 focus:ring-green-500/30'
+            : 'border-amber-500/30 focus:ring-amber-500/30'
+        }
         onCommit={async (value) => update({ accept_qty: value })}
+      />
+
+      <OverrunAcceptedToggle
+        accepted={orderItem.overrun_accepted}
+        disabled={!canEditOrderFields}
+        onToggle={async () => update({ overrun_accepted: !orderItem.overrun_accepted })}
       />
 
       {canViewArtworkFields && (
@@ -842,11 +905,11 @@ export function OrderItemRow({
             onCreate={async (v) => {
               if (!canEditArtworkFields) return;
               await update({ version: v });
-              if (orderItem.item_name_id && orderItem.category_id && onCreatePackagingItem) {
-                await onCreatePackagingItem(orderItem.item_name_id, orderItem.category_id, v);
+              if (effectiveItemNameId && effectiveCategoryId && onCreatePackagingItem) {
+                await onCreatePackagingItem(effectiveItemNameId, effectiveCategoryId, v);
               }
             }}
-            disabled={!orderItem.item_name_id || !orderItem.category_id}
+            disabled={!effectiveItemNameId || !effectiveCategoryId}
             variant="compact"
           />
         </div>

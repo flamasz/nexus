@@ -37,7 +37,9 @@ export function ArtworkModal({ orderItem, access, onClose }: ArtworkModalProps) 
   const [showArchivedUploads, setShowArchivedUploads] = useState(false);
 
   useEffect(() => {
-    if (!orderItem.item_name_id || !orderItem.category_id) {
+    const itemNameId = orderItem.item_name_id;
+    const categoryId = orderItem.category_id;
+    if (!itemNameId || !categoryId) {
       setSessionsLoading(false);
       return;
     }
@@ -46,8 +48,8 @@ export function ArtworkModal({ orderItem, access, onClose }: ArtworkModalProps) 
     let query = supabase
       .from('items')
       .select('id, status')
-      .eq('item_name_id', orderItem.item_name_id)
-      .eq('category_id', orderItem.category_id);
+      .eq('item_name_id', itemNameId)
+      .eq('category_id', categoryId);
 
     if (orderItem.version) {
       query = query.eq('version', orderItem.version);

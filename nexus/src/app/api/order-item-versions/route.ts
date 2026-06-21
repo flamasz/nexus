@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { requireOrganizationContext } from '@/lib/auth/currentUserAccess';
+import { getActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createClient } from '@/lib/supabase/server';
 
 interface VersionWithStatus {
@@ -20,7 +20,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { orgId } = await requireOrganizationContext();
+    const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+    if (!bcConnectionId) {
+      return NextResponse.json({ versions: [] });
+    }
     const supabase = await createClient();
     const [itemsResult, orderItemsResult] = await Promise.all([
       supabase
@@ -29,13 +32,15 @@ export async function GET(request: Request) {
         .eq('item_name_id', itemNameId)
         .eq('category_id', categoryId)
         .eq('organization_id', orgId)
+        .eq('bc_connection_id', bcConnectionId)
         .not('version', 'is', null),
       supabase
         .from('order_items')
-        .select('version, purchase_orders!inner(organization_id)')
+        .select('version, purchase_orders!inner(organization_id, bc_connection_id)')
         .eq('item_name_id', itemNameId)
         .eq('category_id', categoryId)
         .eq('purchase_orders.organization_id', orgId)
+        .eq('purchase_orders.bc_connection_id', bcConnectionId)
         .not('version', 'is', null),
     ]);
 

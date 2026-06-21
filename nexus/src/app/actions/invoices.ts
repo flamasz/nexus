@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizationContext, requirePermission } from '@/lib/auth/currentUserAccess';
+import { getActiveBusinessCentralScope, requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createClient } from '@/lib/supabase/server';
 import {
   EligibleInvoiceOrderItem,
@@ -68,13 +68,14 @@ function revalidateInvoiceSurfaces() {
   revalidatePath('/orders');
 }
 
-async function getInvoiceInOrg(invoiceId: string, orgId: string): Promise<PurchaseInvoice> {
+async function getInvoiceInOrg(invoiceId: string, orgId: string, bcConnectionId: string): Promise<PurchaseInvoice> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('purchase_invoices')
     .select('*')
     .eq('id', invoiceId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (error || !data) {
@@ -84,7 +85,7 @@ async function getInvoiceInOrg(invoiceId: string, orgId: string): Promise<Purcha
   return data as PurchaseInvoice;
 }
 
-async function getOrderItemPatchInOrg(itemId: string, orgId: string): Promise<OrderItemInvoicePatch> {
+async function getOrderItemPatchInOrg(itemId: string, orgId: string, bcConnectionId: string): Promise<OrderItemInvoicePatch> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('order_items')
@@ -97,10 +98,11 @@ async function getOrderItemPatchInOrg(itemId: string, orgId: string): Promise<Or
       supplier_inv_qty_manual,
       manufacturer_inv_qty_manual,
       updated_at,
-      purchase_orders!inner(organization_id)
+      purchase_orders!inner(organization_id, bc_connection_id)
     `)
     .eq('id', itemId)
     .eq('purchase_orders.organization_id', orgId)
+    .eq('purchase_orders.bc_connection_id', bcConnectionId)
     .single();
 
   if (error || !data) {
@@ -130,7 +132,7 @@ async function getOrderItemPatchInOrg(itemId: string, orgId: string): Promise<Or
   };
 }
 
-async function getOrderItemsForWorkspace(orgId: string): Promise<OrderItemWithOrder[]> {
+async function getOrderItemsForWorkspace(orgId: string, bcConnectionId: string): Promise<OrderItemWithOrder[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('purchase_orders')
@@ -145,6 +147,7 @@ async function getOrderItemsForWorkspace(orgId: string): Promise<OrderItemWithOr
       )
     `)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('order_sequence', { ascending: false });
 
   if (error) {
@@ -181,8 +184,8 @@ function attachAssignedItems(
 
 export async function getInvoiceOptions(): Promise<InvoiceOption[]> {
   const supabase = await createClient();
-  const context = await requireOrganizationContext();
-  if (!context.access.canViewInvoices) {
+  const context = await getActiveBusinessCentralScope();
+  if (!context.access.canViewInvoices || !context.bcConnectionId) {
     return [];
   }
 
@@ -190,6 +193,7 @@ export async function getInvoiceOptions(): Promise<InvoiceOption[]> {
     .from('purchase_invoices')
     .select('id, invoice_party, invoice_number, counterparty_name, status, invoice_date, invoice_due_date, created_at')
     .eq('organization_id', context.orgId)
+    .eq('bc_connection_id', context.bcConnectionId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -204,8 +208,8 @@ export async function getInvoiceWorkspaceData(): Promise<{
   eligible_items: Record<InvoiceParty, EligibleInvoiceOrderItem[]>;
 }> {
   const supabase = await createClient();
-  const context = await requireOrganizationContext();
-  if (!context.access.canViewInvoices) {
+  const context = await getActiveBusinessCentralScope();
+  if (!context.access.canViewInvoices || !context.bcConnectionId) {
     return {
       invoices: [],
       eligible_items: { supplier: [], manufacturer: [] },
@@ -217,8 +221,9 @@ export async function getInvoiceWorkspaceData(): Promise<{
       .from('purchase_invoices')
       .select('*')
       .eq('organization_id', context.orgId)
+      .eq('bc_connection_id', context.bcConnectionId)
       .order('updated_at', { ascending: false }),
-    getOrderItemsForWorkspace(context.orgId),
+    getOrderItemsForWorkspace(context.orgId, context.bcConnectionId),
   ]);
 
   if (error) {
@@ -235,10 +240,10 @@ export async function getInvoiceWorkspaceData(): Promise<{
 }
 
 export async function createInvoice(input: InvoiceInput): Promise<PurchaseInvoice> {
-  const { orgId, user } = await requirePermission(
-    (access) => access.canViewInvoices && access.canCreateInvoices,
-    'You do not have permission to create invoices'
-  );
+  const { orgId, bcConnectionId, user, access } = await requireActiveBusinessCentralScope();
+  if (!access.canViewInvoices || !access.canCreateInvoices) {
+    throw new Error('You do not have permission to create invoices');
+  }
   const supabase = await createClient();
   const normalized = normalizeInvoiceInput(input);
 
@@ -247,6 +252,7 @@ export async function createInvoice(input: InvoiceInput): Promise<PurchaseInvoic
     .insert({
       ...normalized,
       organization_id: orgId,
+      bc_connection_id: bcConnectionId,
       created_by: user.id,
     })
     .select('*')
@@ -261,12 +267,12 @@ export async function createInvoice(input: InvoiceInput): Promise<PurchaseInvoic
 }
 
 export async function updateInvoice(invoiceId: string, input: InvoiceInput): Promise<PurchaseInvoice> {
-  const { orgId } = await requirePermission(
-    (access) => access.canViewInvoices && access.canEditInvoices,
-    'You do not have permission to edit invoices'
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canViewInvoices || !access.canEditInvoices) {
+    throw new Error('You do not have permission to edit invoices');
+  }
   const supabase = await createClient();
-  await getInvoiceInOrg(invoiceId, orgId);
+  await getInvoiceInOrg(invoiceId, orgId, bcConnectionId);
   const normalized = normalizeInvoiceInput(input);
 
   const { data, error } = await supabase
@@ -277,6 +283,7 @@ export async function updateInvoice(invoiceId: string, input: InvoiceInput): Pro
     })
     .eq('id', invoiceId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .select('*')
     .single();
 
@@ -289,12 +296,12 @@ export async function updateInvoice(invoiceId: string, input: InvoiceInput): Pro
 }
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
-  const { orgId } = await requirePermission(
-    (access) => access.canViewInvoices && access.canDeleteInvoices,
-    'You do not have permission to delete invoices'
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canViewInvoices || !access.canDeleteInvoices) {
+    throw new Error('You do not have permission to delete invoices');
+  }
   const supabase = await createClient();
-  const invoice = await getInvoiceInOrg(invoiceId, orgId);
+  const invoice = await getInvoiceInOrg(invoiceId, orgId, bcConnectionId);
 
   if (invoice.status !== 'draft') {
     throw new Error('Only draft invoices can be deleted');
@@ -304,7 +311,8 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
     .from('purchase_invoices')
     .delete()
     .eq('id', invoiceId)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;
@@ -319,18 +327,18 @@ export async function assignInvoiceToOrderItem(
   party: InvoiceParty
 ): Promise<OrderItemInvoicePatch> {
   assertInvoiceParty(party);
-  const { orgId } = await requirePermission(
-    (access) => access.canViewInvoices && access.canAssignInvoices,
-    'You do not have permission to assign invoices'
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canViewInvoices || !access.canAssignInvoices) {
+    throw new Error('You do not have permission to assign invoices');
+  }
   const supabase = await createClient();
-  const invoice = await getInvoiceInOrg(invoiceId, orgId);
+  const invoice = await getInvoiceInOrg(invoiceId, orgId, bcConnectionId);
 
   if (invoice.invoice_party !== party) {
     throw new Error('Invoice party does not match assignment side');
   }
 
-  await getOrderItemPatchInOrg(itemId, orgId);
+  await getOrderItemPatchInOrg(itemId, orgId, bcConnectionId);
   const column = assignmentColumnForParty(party);
   const invQtyColumn = party === 'supplier' ? 'supplier_inv_qty' : 'manufacturer_inv_qty';
   const invQtyManualColumn =
@@ -365,7 +373,7 @@ export async function assignInvoiceToOrderItem(
   }
 
   revalidateInvoiceSurfaces();
-  return getOrderItemPatchInOrg(itemId, orgId);
+  return getOrderItemPatchInOrg(itemId, orgId, bcConnectionId);
 }
 
 export async function assignInvoiceToOrderItems(
@@ -385,12 +393,12 @@ export async function unassignInvoiceFromOrderItem(
   party: InvoiceParty
 ): Promise<OrderItemInvoicePatch> {
   assertInvoiceParty(party);
-  const { orgId } = await requirePermission(
-    (access) => access.canViewInvoices && access.canAssignInvoices,
-    'You do not have permission to unassign invoices'
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canViewInvoices || !access.canAssignInvoices) {
+    throw new Error('You do not have permission to unassign invoices');
+  }
   const supabase = await createClient();
-  await getOrderItemPatchInOrg(itemId, orgId);
+  await getOrderItemPatchInOrg(itemId, orgId, bcConnectionId);
   const column = assignmentColumnForParty(party);
 
   const { error } = await supabase
@@ -406,7 +414,7 @@ export async function unassignInvoiceFromOrderItem(
   }
 
   revalidateInvoiceSurfaces();
-  return getOrderItemPatchInOrg(itemId, orgId);
+  return getOrderItemPatchInOrg(itemId, orgId, bcConnectionId);
 }
 
 export async function updateInvoiceOrderItemQuantity(
@@ -415,12 +423,12 @@ export async function updateInvoiceOrderItemQuantity(
   invQty: number | null
 ): Promise<OrderItemInvoicePatch> {
   assertInvoiceParty(party);
-  const { orgId } = await requirePermission(
-    (access) => access.canViewInvoices && access.canAssignInvoices,
-    'You do not have permission to edit invoice quantities'
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canViewInvoices || !access.canAssignInvoices) {
+    throw new Error('You do not have permission to edit invoice quantities');
+  }
   const supabase = await createClient();
-  await getOrderItemPatchInOrg(itemId, orgId);
+  await getOrderItemPatchInOrg(itemId, orgId, bcConnectionId);
   const invQtyColumn = party === 'supplier' ? 'supplier_inv_qty' : 'manufacturer_inv_qty';
   const manualColumn =
     party === 'supplier' ? 'supplier_inv_qty_manual' : 'manufacturer_inv_qty_manual';
@@ -439,5 +447,5 @@ export async function updateInvoiceOrderItemQuantity(
   }
 
   revalidateInvoiceSurfaces();
-  return getOrderItemPatchInOrg(itemId, orgId);
+  return getOrderItemPatchInOrg(itemId, orgId, bcConnectionId);
 }
