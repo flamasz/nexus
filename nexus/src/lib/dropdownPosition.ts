@@ -18,44 +18,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getScrollableParent(element: HTMLElement): HTMLElement | null {
-  let current = element.parentElement;
-
-  while (current) {
-    const style = window.getComputedStyle(current);
-    const overflowY = style.overflowY;
-    const canScroll = (overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight;
-
-    if (canScroll) {
-      return current;
-    }
-
-    current = current.parentElement;
-  }
-
-  return null;
-}
-
-function getPageVerticalBounds(anchor: HTMLElement) {
-  const scrollParent = getScrollableParent(anchor);
-
-  if (scrollParent) {
-    const rect = scrollParent.getBoundingClientRect();
-
-    return {
-      top: rect.top - scrollParent.scrollTop,
-      bottom: rect.top + scrollParent.scrollHeight - scrollParent.scrollTop,
-    };
-  }
-
-  const documentElement = document.documentElement;
-
-  return {
-    top: -window.scrollY,
-    bottom: documentElement.scrollHeight - window.scrollY,
-  };
-}
-
 export function getAnchoredDropdownPosition(
   anchor: HTMLElement,
   {
@@ -69,9 +31,11 @@ export function getAnchoredDropdownPosition(
 ): DropdownPosition {
   const rect = anchor.getBoundingClientRect();
   const viewportLeft = 0;
+  const viewportTop = 0;
   const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
   const viewportRight = viewportLeft + viewportWidth;
-  const pageBounds = getPageVerticalBounds(anchor);
+  const viewportBottom = viewportTop + viewportHeight;
   const availableWidth = Math.max(0, viewportWidth - viewportPadding * 2);
   const width = Math.min(Math.max(rect.width * widthMultiplier, minWidth), availableWidth);
   const minLeft = viewportLeft + viewportPadding;
@@ -80,14 +44,18 @@ export function getAnchoredDropdownPosition(
 
   const belowTop = rect.bottom + gap;
   const aboveBottom = rect.top - gap;
-  const spaceBelow = pageBounds.bottom - belowTop - viewportPadding;
-  const spaceAbove = aboveBottom - pageBounds.top - viewportPadding;
-  const openAbove = spaceBelow < minUsableHeight && spaceAbove > spaceBelow;
-  const availableHeight = openAbove ? spaceAbove : spaceBelow;
+  const spaceBelow = viewportBottom - belowTop - viewportPadding;
+  const spaceAbove = aboveBottom - viewportTop - viewportPadding;
+  const belowHasUsableSpace = spaceBelow >= minUsableHeight;
+  const belowFitsFullDropdown = spaceBelow >= maxHeight;
+  const openAbove = (!belowFitsFullDropdown && spaceAbove > spaceBelow) || (!belowHasUsableSpace && spaceAbove > 0);
+  const availableHeight = Math.max(0, openAbove ? spaceAbove : spaceBelow);
   const usableHeight = Math.max(96, Math.min(maxHeight, availableHeight));
 
   return {
-    top: openAbove ? Math.max(pageBounds.top + viewportPadding, aboveBottom - usableHeight) : belowTop,
+    top: openAbove
+      ? Math.max(viewportTop + viewportPadding, aboveBottom - usableHeight)
+      : Math.min(belowTop, viewportBottom - viewportPadding - usableHeight),
     left,
     width,
     maxHeight: usableHeight,

@@ -19,6 +19,13 @@ export function BcCredentialsCard() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  // Snapshot of the last-saved values, used to enable Save only when edited.
+  const [pristine, setPristine] = useState({
+    tenantId: '',
+    clientId: '',
+    companyId: '',
+    defaultApiBaseUrl: '',
+  });
 
   useEffect(() => {
     let active = true;
@@ -31,6 +38,12 @@ export function BcCredentialsCard() {
         setCompanyName(data.companyName ?? '');
         setDefaultApiBaseUrl(data.defaultApiBaseUrl ?? '');
         setHasSecret(data.hasSecret);
+        setPristine({
+          tenantId: data.tenantId,
+          clientId: data.clientId,
+          companyId: data.companyId ?? '',
+          defaultApiBaseUrl: data.defaultApiBaseUrl ?? '',
+        });
       })
       .catch((err) => {
         if (active) {
@@ -71,6 +84,21 @@ export function BcCredentialsCard() {
         setHasSecret(true);
         setClientSecret('');
       }
+      // Re-baseline to the saved values so Save greys out again until re-edited.
+      const savedTenantId = tenantId.trim();
+      const savedClientId = clientId.trim();
+      const savedCompanyId = companyId.trim();
+      const savedApiBaseUrl = defaultApiBaseUrl.trim();
+      setTenantId(savedTenantId);
+      setClientId(savedClientId);
+      setCompanyId(savedCompanyId);
+      setDefaultApiBaseUrl(savedApiBaseUrl);
+      setPristine({
+        tenantId: savedTenantId,
+        clientId: savedClientId,
+        companyId: savedCompanyId,
+        defaultApiBaseUrl: savedApiBaseUrl,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -80,6 +108,15 @@ export function BcCredentialsCard() {
       setSaving(false);
     }
   };
+
+  // Save is enabled only when the form differs from the last-saved snapshot
+  // (a non-empty secret entry also counts as an edit).
+  const isDirty =
+    tenantId !== pristine.tenantId ||
+    clientId !== pristine.clientId ||
+    companyId !== pristine.companyId ||
+    defaultApiBaseUrl !== pristine.defaultApiBaseUrl ||
+    clientSecret.trim() !== '';
 
   return (
     <div className="bg-surface rounded-lg border border-border shadow-sm mt-6">
@@ -186,8 +223,8 @@ export function BcCredentialsCard() {
               <div className="pt-1">
                 <button
                   onClick={handleSave}
-                  disabled={saving}
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground text-sm rounded-md transition-colors"
+                  disabled={saving || !isDirty}
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary text-primary-foreground text-sm rounded-md transition-colors"
                 >
                   {saving ? 'Saving...' : saved ? 'Saved!' : 'Save'}
                 </button>

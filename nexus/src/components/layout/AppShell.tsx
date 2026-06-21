@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AppNav } from './AppNav';
 import { Header } from './Header';
 import { createClient } from '@/lib/supabase/client';
-import { User, Organization } from '@/types/database';
+import { User, Organization, BusinessCentralConnection } from '@/types/database';
 import { BusinessCentralConnectionStatusData } from '@/types/businessCentralItems';
 
 interface AppShellProps {
@@ -13,12 +13,15 @@ interface AppShellProps {
   organization: Organization | null;
   organizations: Organization[];
   businessCentralStatus: BusinessCentralConnectionStatusData;
+  bcConnections: BusinessCentralConnection[];
+  activeBcConnectionId: string | null;
+  hasBcCredentials: boolean;
   children: React.ReactNode;
 }
 
 function buildPermissionsFingerprint(
   user:
-    | Partial<Pick<User, 'organization_id' | 'role' | 'permissions_version' | 'permissions_updated_at'>>
+    | Partial<Pick<User, 'organization_id' | 'role' | 'permissions_version' | 'permissions_updated_at' | 'active_bc_connection_id'>>
     | null
     | undefined
 ) {
@@ -31,10 +34,11 @@ function buildPermissionsFingerprint(
     role: user.role ?? null,
     permissions_version: user.permissions_version ?? null,
     permissions_updated_at: user.permissions_updated_at ?? null,
+    active_bc_connection_id: user.active_bc_connection_id ?? null,
   });
 }
 
-export function AppShell({ user, organization, organizations, businessCentralStatus, children }: AppShellProps) {
+export function AppShell({ user, organization, organizations, businessCentralStatus, bcConnections, activeBcConnectionId, hasBcCredentials, children }: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -106,7 +110,7 @@ export function AppShell({ user, organization, organizations, businessCentralSta
 
       const { data, error } = await supabase
         .from('users')
-        .select('organization_id, role, permissions_version, permissions_updated_at')
+        .select('organization_id, role, permissions_version, permissions_updated_at, active_bc_connection_id')
         .eq('id', user.id)
         .single();
 
@@ -180,6 +184,9 @@ export function AppShell({ user, organization, organizations, businessCentralSta
           organization={organization}
           organizations={organizations}
           businessCentralStatus={businessCentralStatus}
+          bcConnections={bcConnections}
+          activeBcConnectionId={activeBcConnectionId}
+          hasBcCredentials={hasBcCredentials}
           onMenuClick={handleToggleSidebar}
         />
         <Fragment key={refreshFingerprint ?? 'anonymous-user'}>{children}</Fragment>

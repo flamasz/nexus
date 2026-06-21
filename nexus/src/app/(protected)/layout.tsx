@@ -4,7 +4,8 @@ import { AppShell } from '@/components/layout';
 import { getCurrentUser } from '@/app/actions/users';
 import { getUserOrganizations } from '@/app/actions/organizations';
 import { getBusinessCentralConnectionStatus } from '@/app/actions/businessCentralItems';
-import { Organization } from '@/types/database';
+import { listBcConnections, getBcCredentials } from '@/app/actions/businessCentralConnections';
+import { Organization, BusinessCentralConnection } from '@/types/database';
 import { BusinessCentralConnectionStatusData } from '@/types/businessCentralItems';
 
 export default async function ProtectedLayout({
@@ -47,11 +48,23 @@ export default async function ProtectedLayout({
     },
   };
 
+  let bcConnections: BusinessCentralConnection[] = [];
+  let hasBcCredentials = false;
+
   if (user?.organization_id) {
     try {
       businessCentralStatus = await getBusinessCentralConnectionStatus();
     } catch (error) {
       console.error('Failed to load Business Central connection status:', error);
+    }
+
+    try {
+      [bcConnections, hasBcCredentials] = await Promise.all([
+        listBcConnections(),
+        getBcCredentials().then((credentials) => credentials !== null),
+      ]);
+    } catch (error) {
+      console.error('Failed to load Business Central environments:', error);
     }
   }
 
@@ -61,6 +74,9 @@ export default async function ProtectedLayout({
       organization={organization}
       organizations={organizations}
       businessCentralStatus={businessCentralStatus}
+      bcConnections={bcConnections}
+      activeBcConnectionId={user?.active_bc_connection_id ?? null}
+      hasBcCredentials={hasBcCredentials}
     >
       {children}
     </AppShell>

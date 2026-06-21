@@ -1,14 +1,15 @@
 'use client';
 
-import { useTransition } from 'react';
+import { Fragment, useTransition } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { resolveUserAccess } from '@/lib/auth/permissions';
-import { User, Organization } from '@/types/database';
+import { User, Organization, BusinessCentralConnection } from '@/types/database';
 import { BusinessCentralConnectionStatusData } from '@/types/businessCentralItems';
 import { Search, Bell, ChevronDown, Settings, Shield, LogOut, Check, Menu, AlertCircle, RefreshCw } from 'lucide-react';
 import { switchOrganization } from '@/app/actions/organizations';
+import { switchBcEnvironment } from '@/app/actions/businessCentralConnections';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,9 @@ interface HeaderProps {
   organization: Organization | null;
   organizations: Organization[];
   businessCentralStatus: BusinessCentralConnectionStatusData;
+  bcConnections: BusinessCentralConnection[];
+  activeBcConnectionId: string | null;
+  hasBcCredentials: boolean;
   onMenuClick?: () => void;
 }
 
@@ -37,14 +41,40 @@ function formatTimestamp(value: string | null): string {
   }
 }
 
-export function Header({ user, organization, organizations, businessCentralStatus, onMenuClick }: HeaderProps) {
+export function Header({
+  user,
+  organization,
+  organizations,
+  businessCentralStatus,
+  bcConnections,
+  activeBcConnectionId,
+  hasBcCredentials,
+  onMenuClick,
+}: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const access = resolveUserAccess(user);
   const [isSwitchingOrganization, startSwitchOrganization] = useTransition();
+  const [isSwitchingEnvironment, startSwitchEnvironment] = useTransition();
   const organizationsToShow = organization && !organizations.some((org) => org.id === organization.id)
     ? [organization, ...organizations]
     : organizations;
+
+  // The active environment falls back to the org default when the user has no
+  // explicit selection (or it points at a deleted/cross-org connection) —
+  // mirrors resolveActiveBcConnection so the checkmark matches what's in use.
+  const defaultBcConnection = bcConnections.find((conn) => conn.is_default) ?? null;
+  const effectiveActiveBcConnectionId =
+    activeBcConnectionId && bcConnections.some((conn) => conn.id === activeBcConnectionId)
+      ? activeBcConnectionId
+      : defaultBcConnection?.id ?? null;
+
+  const handleSwitchEnvironment = (connectionId: string) => {
+    startSwitchEnvironment(async () => {
+      await switchBcEnvironment(connectionId);
+      router.refresh();
+    });
+  };
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -129,26 +159,76 @@ export function Header({ user, organization, organizations, businessCentralStatu
                     {organizationsToShow.map((org) => {
                       const isCurrent = org.id === organization.id;
                       return (
-                        <DropdownMenuItem
-                          key={org.id}
-                          disabled={isCurrent || isSwitchingOrganization}
-                          onClick={() => {
-                            if (!isCurrent) {
-                              startSwitchOrganization(() => {
-                                void switchOrganization(org.id);
-                              });
-                            }
-                          }}
-                          className="cursor-pointer px-1.5 py-1.5 text-xs"
-                        >
-                          <div className="size-5 rounded bg-primary/20 flex items-center justify-center">
-                            <span className="text-[10px] font-bold text-primary">
-                              {org.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="min-w-0 flex-1 truncate">{org.name}</span>
-                          {isCurrent && <Check className="size-3.5 text-primary" />}
-                        </DropdownMenuItem>
+                        <Fragment key={org.id}>
+                          <DropdownMenuItem
+                            disabled={isCurrent || isSwitchingOrganization}
+                            onClick={() => {
+                              if (!isCurrent) {
+                                startSwitchOrganization(() => {
+                                  void switchOrganization(org.id);
+                                });
+                              }
+                            }}
+                            className="cursor-pointer px-1.5 py-1.5 text-xs"
+                          >
+                            <div className="size-5 rounded bg-primary/20 flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-primary">
+                                {org.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <span className="min-w-0 flex-1 truncate">{org.name}</span>
+                            {isCurrent && <Check className="size-3.5 text-primary" />}
+                          </DropdownMenuItem>
+
+                          {isCurrent && (
+                            <div className="space-y-0.5">
+                              {!hasBcCredentials ? (
+                                <DropdownMenuItem
+                                  asChild
+                                  className="cursor-pointer px-1.5 py-1.5 text-xs"
+                                >
+                                  <Link href="/admin">
+                                    <span className="ml-7 min-w-0 flex-1 truncate text-foreground-muted">
+                                      Configure Business Central
+                                    </span>
+                                  </Link>
+                                </DropdownMenuItem>
+                              ) : bcConnections.length === 0 ? (
+                                <DropdownMenuItem
+                                  asChild
+                                  className="cursor-pointer px-1.5 py-1.5 text-xs"
+                                >
+                                  <Link href="/admin">
+                                    <span className="ml-7 min-w-0 flex-1 truncate text-foreground-muted">
+                                      No environments
+                                    </span>
+                                  </Link>
+                                </DropdownMenuItem>
+                              ) : (
+                                bcConnections.map((conn) => {
+                                  const isActiveEnv = conn.id === effectiveActiveBcConnectionId;
+                                  return (
+                                    <DropdownMenuItem
+                                      key={conn.id}
+                                      disabled={isActiveEnv || isSwitchingEnvironment}
+                                      onClick={() => {
+                                        if (!isActiveEnv) {
+                                          handleSwitchEnvironment(conn.id);
+                                        }
+                                      }}
+                                      className="cursor-pointer px-1.5 py-1.5 text-xs"
+                                    >
+                                      <span className="ml-7 min-w-0 flex-1 truncate">
+                                        {conn.display_name}
+                                      </span>
+                                      {isActiveEnv && <Check className="size-3.5 text-primary" />}
+                                    </DropdownMenuItem>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </div>
