@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { getCategories } from '@/app/actions/categories';
-import { getBusinessCentralItemsPageData } from '@/app/actions/businessCentralItems';
+import { getBusinessCentralReferenceData } from '@/app/actions/businessCentralItems';
 import {
   listItemTemplates,
   createItemTemplate,
@@ -295,7 +295,7 @@ export function ItemTemplatesCard() {
     Promise.all([
       listItemTemplates(),
       getCategories(),
-      getBusinessCentralItemsPageData().then((d) => d.references),
+      getBusinessCentralReferenceData(),
     ])
       .then(([tmpl, cats, refs]) => {
         if (!active) return;

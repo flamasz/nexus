@@ -171,6 +171,13 @@ export async function getBusinessCentralItemsPageData(): Promise<BusinessCentral
 }
 
 
+export async function getBusinessCentralReferenceData(): Promise<BusinessCentralReferenceData> {
+  const { orgId, user } = await requireBcView();
+  const supabase = createServiceClient();
+  const connection = await resolveActiveBcConnection(orgId, user.id);
+  return getReferenceData(supabase, orgId, connection?.id ?? null);
+}
+
 export async function getBusinessCentralConnectionStatus(): Promise<BusinessCentralConnectionStatusData> {
   const { orgId, user } = await requireOrganizationContext();
   const connection = await resolveActiveBcConnection(orgId, user.id);
