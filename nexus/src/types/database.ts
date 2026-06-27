@@ -117,6 +117,7 @@ export interface Category {
   unit: DimensionUnit;
   color: string | null;
   organization_id: string | null;
+  bc_no_series_code: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -152,6 +153,28 @@ export interface Item {
   created_at: string;
   updated_at: string;
   bc_item_id: string | null;
+}
+
+export interface ItemTemplate {
+  id: string;
+  organization_id: string;
+  bc_connection_id: string | null;
+  name: string;
+  description: string | null;
+  category_id: string | null;
+  bc_item_category_code: string | null;
+  default_type: string;
+  base_unit_of_measure_code: string | null;
+  tax_group_code: string | null;
+  general_product_posting_group_code: string | null;
+  inventory_posting_group_code: string | null;
+  price_includes_tax: boolean;
+  blocked: boolean;
+  is_active: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BusinessCentralCredentials {
@@ -543,6 +566,15 @@ export interface Database {
           bc_connection_id?: string | null;
         };
         Update: Partial<Omit<Category, "id">>;
+      };
+      item_templates: {
+        Row: ItemTemplate;
+        Insert: Omit<ItemTemplate, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ItemTemplate, "id">>;
       };
       product_lines: {
         Row: ProductLine;
