@@ -10,6 +10,8 @@ import { requireOrganizationContext, requirePermission } from '@/lib/auth/curren
 import { ResolvedUserAccess } from '@/lib/auth/permissions';
 import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
 import { BcApiError, BcClient, createBcClientForOrg } from '@/lib/businessCentral/client';
+import { createBcNoSeriesAssigner, type NumberAssigner } from '@/lib/businessCentral/numberAssigner';
+import { createNoSeriesClientForOrg } from '@/lib/businessCentral/noSeriesClient';
 import {
   buildBcCreatePayload,
   buildBcPatchPayload,
@@ -47,8 +49,39 @@ import {
 
 const BC_SYNC_PAGE_SIZE = 500;
 const MAX_SYNC_PULL_ITEMS = 10_000;
+const MAX_DUPLICATE_RETRIES = 5;
 
 type SupabaseClient = ReturnType<typeof createServiceClient>;
+
+export interface AssignAndCreateOptions<T extends { number: string } = { number: string }> {
+  assigner: NumberAssigner;
+  seriesCode: string;
+  createInBc: (assignedNumber: string) => Promise<T>;
+  isDuplicate?: (error: unknown) => boolean;
+}
+
+export async function assignAndCreate<T extends { number: string }>(opts: AssignAndCreateOptions<T>): Promise<T> {
+  const isDuplicate = opts.isDuplicate ?? defaultIsDuplicate;
+  let prepared = await opts.assigner.prepare(opts.seriesCode);
+  for (let attempt = 0; attempt < MAX_DUPLICATE_RETRIES; attempt += 1) {
+    try {
+      const created = await opts.createInBc(prepared.candidate);
+      await opts.assigner.commit(prepared, created.number);
+      return created;
+    } catch (error) {
+      if (!isDuplicate(error)) throw error; // create failed for another reason → no commit, no number burned
+      prepared = opts.assigner.bump(prepared);
+    }
+  }
+  throw new Error(`Could not find a free number in series '${opts.seriesCode}' after ${MAX_DUPLICATE_RETRIES} attempts`);
+}
+
+function defaultIsDuplicate(error: unknown): boolean {
+  // BcApiError on a duplicate primary key surfaces as 400/409 with a duplicate message.
+  const status = (error as { details?: { status?: number } })?.details?.status;
+  const message = (error as { details?: { message?: string } })?.details?.message ?? '';
+  return status === 409 || /already exists|duplicate/i.test(message);
+}
 
 export interface BusinessCentralItemsPageData extends BusinessCentralConnectionStatusData {
   activeConnectionId: string | null;
@@ -82,6 +115,7 @@ export interface CreateBusinessCentralItemInput {
   priceIncludesTax?: boolean;
   unitCost?: number | null;
   gtin?: string | null;
+  categoryId?: string | null; // packaging category; when its category has bc_no_series_code, auto-assign the number
 }
 
 function canViewBusinessCentralItems(access: ResolvedUserAccess): boolean {
@@ -461,7 +495,22 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
 
   try {
     const client = await createBcClientForOrg(orgId, connection.id);
-    const created = await client.createItem(buildBcCreatePayload(draft));
+    const seriesCode = await resolveSeriesCodeForCategory(supabase, orgId, connection.id, input.categoryId ?? null);
+
+    let created;
+    if (seriesCode && !input.number) {
+      const noSeries = await createNoSeriesClientForOrg(orgId, connection.id);
+      const assigner = createBcNoSeriesAssigner(noSeries);
+      created = await assignAndCreate({
+        assigner,
+        seriesCode,
+        createInBc: (assignedNumber) =>
+          client.createItem(buildBcCreatePayload({ ...draft, bc_item_number: assignedNumber })),
+      });
+    } else {
+      // manual number or no series mapped → today's behavior
+      created = await client.createItem(buildBcCreatePayload(draft));
+    }
     const createPayload = {
       ...mapBcItemToDb({
         organizationId: orgId,
@@ -848,4 +897,21 @@ function toSyncProgress(connection: BusinessCentralConnection | null): SyncProgr
 function sanitizeSnapshot(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object') return {};
   return Object.fromEntries(Object.entries(input).filter(([key]) => !/authorization|secret|token/i.test(key)));
+}
+
+async function resolveSeriesCodeForCategory(
+  supabase: SupabaseClient,
+  orgId: string,
+  _connectionId: string,
+  categoryId: string | null,
+): Promise<string | null> {
+  if (!categoryId) return null;
+  const { data, error } = await supabase
+    .from('categories')
+    .select('bc_no_series_code')
+    .eq('id', categoryId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { bc_no_series_code?: string | null } | null)?.bc_no_series_code ?? null;
 }
