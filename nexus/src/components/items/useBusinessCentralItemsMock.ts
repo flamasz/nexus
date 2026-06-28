@@ -79,6 +79,8 @@ export interface CreateBusinessCentralItemDraft {
   categoryId: string | null;
   /** When false, BC assigns the number from the series; when true, bcItemNumber is sent explicitly */
   manualNumber: boolean;
+  generalProductPostingGroupCode?: string | null;
+  inventoryPostingGroupCode?: string | null;
 }
 
 export function createInitialBusinessCentralItemsMockState(

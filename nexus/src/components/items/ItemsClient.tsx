@@ -587,10 +587,13 @@ export function ItemsClient({
                 type: draft.type,
                 itemCategoryCode: draft.itemCategoryCode,
                 baseUnitOfMeasureCode: draft.baseUnitOfMeasureCode,
+                taxGroupCode: draft.taxGroupCode || undefined,
                 unitPrice: draft.unitPrice,
                 unitCost: draft.unitCost,
                 gtin: draft.gtin,
                 categoryId: draft.categoryId,
+                generalProductPostingGroupCode: draft.generalProductPostingGroupCode || undefined,
+                inventoryPostingGroupCode: draft.inventoryPostingGroupCode || undefined,
               }),
             onSuccess: (entry) => dispatch({ type: "upsertCreatedItem", entry }),
             successMessage: (entry) =>
@@ -1810,6 +1813,8 @@ function CreateItemDialog({
     gtin: null,
     categoryId: null,
     manualNumber: true,
+    generalProductPostingGroupCode: null,
+    inventoryPostingGroupCode: null,
   });
 
   const [draft, setDraft] = useState<CreateBusinessCentralItemDraft>(defaultDraft);

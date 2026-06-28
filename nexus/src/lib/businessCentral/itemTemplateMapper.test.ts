@@ -16,12 +16,21 @@ describe('templateToCreateInput', () => {
     expect(result).toMatchObject({
       displayName: 'Dark 70%', type: 'Inventory', itemCategoryCode: 'FINISHED',
       baseUnitOfMeasureCode: 'PCS', taxGroupCode: 'FOOD', priceIncludesTax: false,
+      generalProductPostingGroupCode: 'RETAIL', inventoryPostingGroupCode: 'RESALE',
     });
   });
   it('omits null template fields rather than sending empty strings', () => {
-    const bare = { ...template, base_unit_of_measure_code: null, tax_group_code: null };
+    const bare = {
+      ...template,
+      base_unit_of_measure_code: null,
+      tax_group_code: null,
+      general_product_posting_group_code: null,
+      inventory_posting_group_code: null,
+    };
     const result = templateToCreateInput(bare, { displayName: 'X' });
     expect(result.baseUnitOfMeasureCode).toBeUndefined();
     expect(result.taxGroupCode).toBeUndefined();
+    expect(result.generalProductPostingGroupCode).toBeUndefined();
+    expect(result.inventoryPostingGroupCode).toBeUndefined();
   });
 });

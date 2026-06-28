@@ -14,5 +14,7 @@ export function templateToCreateInput(
   if (template.bc_item_category_code) out.itemCategoryCode = template.bc_item_category_code;
   if (template.base_unit_of_measure_code) out.baseUnitOfMeasureCode = template.base_unit_of_measure_code;
   if (template.tax_group_code) out.taxGroupCode = template.tax_group_code;
+  if (template.general_product_posting_group_code) out.generalProductPostingGroupCode = template.general_product_posting_group_code;
+  if (template.inventory_posting_group_code) out.inventoryPostingGroupCode = template.inventory_posting_group_code;
   return out;
 }

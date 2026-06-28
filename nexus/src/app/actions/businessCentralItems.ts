@@ -111,6 +111,8 @@ export interface CreateBusinessCentralItemInput {
   baseUnitOfMeasureCode?: string | null;
   taxGroupId?: string | null;
   taxGroupCode?: string | null;
+  generalProductPostingGroupCode?: string | null;
+  inventoryPostingGroupCode?: string | null;
   unitPrice?: number | null;
   priceIncludesTax?: boolean;
   unitCost?: number | null;
@@ -479,9 +481,9 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
     blocked: false,
     price_includes_tax: input.priceIncludesTax ?? false,
     general_product_posting_group_id: null,
-    general_product_posting_group_code: null,
+    general_product_posting_group_code: input.generalProductPostingGroupCode || null,
     inventory_posting_group_id: null,
-    inventory_posting_group_code: null,
+    inventory_posting_group_code: input.inventoryPostingGroupCode || null,
     bc_raw_payload: {},
     sync_status: 'syncing',
     sync_error: null,
