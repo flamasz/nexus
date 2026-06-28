@@ -58,6 +58,8 @@ export interface AssignAndCreateOptions<T extends { number: string } = { number:
   seriesCode: string;
   createInBc: (assignedNumber: string) => Promise<T>;
   isDuplicate?: (error: unknown) => boolean;
+  /** Local date (YYYY-MM-DD) to stamp on the No. Series Last_Date_Used. Omit to use the UTC date (existing default). */
+  today?: string;
 }
 
 export async function assignAndCreate<T extends { number: string }>(opts: AssignAndCreateOptions<T>): Promise<T> {
@@ -66,7 +68,7 @@ export async function assignAndCreate<T extends { number: string }>(opts: Assign
   for (let attempt = 0; attempt < MAX_DUPLICATE_RETRIES; attempt += 1) {
     try {
       const created = await opts.createInBc(prepared.candidate);
-      await opts.assigner.commit(prepared, created.number);
+      await opts.assigner.commit(prepared, created.number, opts.today);
       return created;
     } catch (error) {
       if (!isDuplicate(error)) throw error; // create failed for another reason → no commit, no number burned
@@ -510,11 +512,15 @@ export async function createBusinessCentralItem(input: CreateBusinessCentralItem
     if (seriesCode && !input.number) {
       const noSeries = await createNoSeriesClientForOrg(orgId, connection.id);
       const assigner = createBcNoSeriesAssigner(noSeries);
+      const today = connection.time_zone
+        ? new Intl.DateTimeFormat('en-CA', { timeZone: connection.time_zone }).format(new Date())
+        : undefined;
       created = await assignAndCreate({
         assigner,
         seriesCode,
         createInBc: (assignedNumber) =>
           client.createItem(buildBcCreatePayload({ ...draft, bc_item_number: assignedNumber })),
+        today,
       });
     } else {
       // manual number or no series mapped → today's behavior

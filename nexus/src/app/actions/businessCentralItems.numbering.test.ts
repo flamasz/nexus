@@ -43,4 +43,28 @@ describe('assignAndCreate', () => {
     expect(result.number).toBe('NX000007');
     expect(createInBc).toHaveBeenCalledTimes(2);
   });
+
+  it('forwards today to assigner.commit as the third argument', async () => {
+    const commit = vi.fn(async () => {});
+    const assigner: NumberAssigner = {
+      prepare: async () => preparedStub('NX000006'),
+      bump: (p) => p,
+      commit,
+    };
+    const createInBc = vi.fn(async (num: string) => ({ number: num }));
+    await assignAndCreate({ assigner, seriesCode: 'S', createInBc, today: '2024-01-15' });
+    expect(commit).toHaveBeenCalledWith(expect.anything(), 'NX000006', '2024-01-15');
+  });
+
+  it('passes undefined to assigner.commit when today is not provided (UTC default preserved)', async () => {
+    const commit = vi.fn(async () => {});
+    const assigner: NumberAssigner = {
+      prepare: async () => preparedStub('NX000006'),
+      bump: (p) => p,
+      commit,
+    };
+    const createInBc = vi.fn(async (num: string) => ({ number: num }));
+    await assignAndCreate({ assigner, seriesCode: 'S', createInBc });
+    expect(commit).toHaveBeenCalledWith(expect.anything(), 'NX000006', undefined);
+  });
 });

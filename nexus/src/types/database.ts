@@ -198,6 +198,7 @@ export interface BusinessCentralConnection {
   company_id: string;
   company_name: string | null;
   api_base_url: string;
+  time_zone: string | null;
   sync_enabled: boolean;
   is_default: boolean;
   last_verified_at: string | null;
@@ -731,6 +732,7 @@ export interface Database {
           | "api_base_url"
           | "sync_enabled"
           | "is_default"
+          | "time_zone"
         > & {
           id?: string;
           created_at?: string;
@@ -738,6 +740,7 @@ export interface Database {
           api_base_url?: string;
           sync_enabled?: boolean;
           is_default?: boolean;
+          time_zone?: string | null;
         };
         Update: Partial<Omit<BusinessCentralConnection, "id">>;
       };

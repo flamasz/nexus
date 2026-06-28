@@ -73,6 +73,7 @@ export function BcEnvironmentsCard() {
       displayName: values.displayName,
       environment: values.environment,
       apiBaseUrl: values.apiBaseUrl || null,
+      timeZone: values.timeZone || null,
     });
     await reload();
     setShowCreateForm(false);
@@ -84,6 +85,7 @@ export function BcEnvironmentsCard() {
       displayName: values.displayName,
       environment: values.environment,
       apiBaseUrl: values.apiBaseUrl || null,
+      timeZone: values.timeZone || null,
     });
     await reload();
     setEditingConnection(null);
