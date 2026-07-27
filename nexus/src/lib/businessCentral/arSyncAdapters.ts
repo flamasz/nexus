@@ -50,15 +50,16 @@ export function buildArSyncAdapters(input: ArSyncAdapterInput): SyncEntityAdapte
     conflictTarget: 'organization_id,bc_connection_id,bc_company_id,bc_customer_id',
     pageSize: AR_SYNC_PAGE_SIZE,
     fetchPage: (cursor, top) =>
-      // `customerFinancialDetails` (balance, overdueAmount) is only present on
-      // the response when explicitly expanded — BC API v2.0 does not include
-      // it by default. It's needed as an independent cross-check against our
-      // own aging arithmetic.
+      // No $expand of customerFinancialDetails: this tenant's BC rejects it
+      // with "Could not find a property named 'customerFinancialDetails' on
+      // type 'Microsoft.NAV.customer'". `balance` still populates from the
+      // customer's own top-level field; `overdue_amount` stays null, so no UI
+      // surfaces it. Deriving overdue from our own ledger entries is a
+      // follow-up.
       bcClient.listResourcePage<BcCustomer>('customers', {
         filter: deltaFilter(cursor),
         orderBy: 'lastModifiedDateTime',
         top,
-        expand: 'customerFinancialDetails',
       }),
     map: (ctx, customer) =>
       mapBcCustomerToDb({
@@ -105,10 +106,19 @@ export function buildArSyncAdapters(input: ArSyncAdapterInput): SyncEntityAdapte
     table: 'business_central_sales_invoice_lines',
     conflictTarget: 'organization_id,bc_connection_id,bc_company_id,bc_line_id',
     pageSize: AR_SYNC_PAGE_SIZE,
+    // salesInvoiceLine has NO lastModifiedDateTime in BC API v2.0 — this
+    // tenant rejects it with "Could not find a property named
+    // 'lastModifiedDateTime' on type 'Microsoft.NAV.salesInvoiceLine'". So
+    // there is no delta field for lines at all; we keyset on documentId
+    // instead, which gives a resumable full scan. `ge` (not `gt`) because all
+    // lines of one invoice share a documentId and a tie group straddling a
+    // page boundary would otherwise be dropped; the re-fetch is harmless
+    // because writes are idempotent upserts. An invoice with more than
+    // pageSize lines would trip the runner's cursor-did-not-advance guard.
     fetchPage: (cursor, top) =>
       bcClient.listResourcePage<BcSalesInvoiceLine>('salesInvoiceLines', {
-        filter: deltaFilter(cursor),
-        orderBy: 'lastModifiedDateTime',
+        filter: cursor ? `documentId ge ${cursor}` : undefined,
+        orderBy: 'documentId',
         top,
       }),
     map: (ctx, line) =>
@@ -120,7 +130,9 @@ export function buildArSyncAdapters(input: ArSyncAdapterInput): SyncEntityAdapte
         line,
         now: ctx.now,
       }) as Record<string, unknown>,
-    cursorValue: (line) => line.lastModifiedDateTime ?? '',
+    // Matches the documentId keyset above. Edm.Guid literals are unquoted in
+    // OData v4 filters, so the raw value interpolates directly.
+    cursorValue: (line) => line.documentId,
   };
 
   const ledgerEntries: SyncEntityAdapter<BcCustomerLedgerEntry> = {

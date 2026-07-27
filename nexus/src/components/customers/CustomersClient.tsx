@@ -172,7 +172,6 @@ export function CustomersClient({ customers, canSync, initialSearch }: Customers
                       <th className="px-4 py-2.5 font-medium">City</th>
                       <th className="px-4 py-2.5 font-medium">Currency</th>
                       <th className="px-4 py-2.5 text-right font-medium">Balance</th>
-                      <th className="px-4 py-2.5 text-right font-medium">Overdue</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -219,19 +218,6 @@ export function CustomersClient({ customers, canSync, initialSearch }: Customers
                             className="block px-4 py-2.5 text-right text-foreground"
                           >
                             {formatMoney(customer.balance, customer.currency_code)}
-                          </Link>
-                        </td>
-                        <td className="p-0">
-                          <Link
-                            href={`/customers/${customer.id}`}
-                            className={cn(
-                              "block px-4 py-2.5 text-right",
-                              customer.overdue_amount && customer.overdue_amount > 0
-                                ? "text-destructive"
-                                : "text-foreground-muted"
-                            )}
-                          >
-                            {formatMoney(customer.overdue_amount, customer.currency_code)}
                           </Link>
                         </td>
                       </tr>

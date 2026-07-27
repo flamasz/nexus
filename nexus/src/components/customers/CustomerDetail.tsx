@@ -109,20 +109,6 @@ export function CustomerDetail({ customer, invoices, ledgerEntries }: CustomerDe
               label="Balance"
               value={formatMoney(customer.balance, customer.currency_code)}
             />
-            <ReadonlyField
-              label="Overdue amount"
-              value={
-                <span
-                  className={
-                    customer.overdue_amount && customer.overdue_amount > 0
-                      ? "text-destructive"
-                      : undefined
-                  }
-                >
-                  {formatMoney(customer.overdue_amount, customer.currency_code)}
-                </span>
-              }
-            />
           </FieldCard>
 
           <div className="rounded-xl border border-border bg-surface-raised card-shadow">

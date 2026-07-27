@@ -54,14 +54,14 @@ describe('buildArSyncAdapters', () => {
     expect(call[1].top).toBe(500);
   });
 
-  it('requests the customerFinancialDetails expand for customers, so overdue_amount can be populated', async () => {
+  it('does not pass an expand option for customers, because BC rejects the customerFinancialDetails expand', async () => {
     const { bcClient, ledgerClient, listResourcePage } = fakeClients();
     const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
     const customers = adapters.find((a) => a.entityType === 'customer')!;
 
     await customers.fetchPage(null, 500);
 
-    expect(listResourcePage.mock.calls[0][1].expand).toBe('customerFinancialDetails');
+    expect(listResourcePage.mock.calls[0][1].expand).toBeUndefined();
   });
 
   it('omits the cursor clause on a first run', async () => {
@@ -111,21 +111,31 @@ describe('buildArSyncAdapters', () => {
     ).toBe('2026-03-03T10:00:00Z');
   });
 
-  it('fetches sales invoice lines with the ge cursor filter and correct orderBy', async () => {
+  it('fetches sales invoice lines with the documentId ge cursor filter and correct orderBy', async () => {
     const { bcClient, ledgerClient, listResourcePage } = fakeClients();
     const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
     const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
 
-    await lines.fetchPage('2026-03-01T00:00:00Z', 500);
+    await lines.fetchPage('inv-1', 500);
 
     const call = listResourcePage.mock.calls[0];
     expect(call[0]).toBe('salesInvoiceLines');
-    expect(call[1].filter).toBe('lastModifiedDateTime ge 2026-03-01T00:00:00Z');
-    expect(call[1].orderBy).toBe('lastModifiedDateTime');
+    expect(call[1].filter).toBe('documentId ge inv-1');
+    expect(call[1].orderBy).toBe('documentId');
     expect(call[1].top).toBe(500);
   });
 
-  it('uses lastModifiedDateTime as the cursor for sales invoice lines', () => {
+  it('passes no filter for sales invoice lines on a first run', async () => {
+    const { bcClient, ledgerClient, listResourcePage } = fakeClients();
+    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
+    const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
+
+    await lines.fetchPage(null, 500);
+
+    expect(listResourcePage.mock.calls[0][1].filter).toBeUndefined();
+  });
+
+  it('uses documentId as the cursor for sales invoice lines, since they have no lastModifiedDateTime', () => {
     const { bcClient, ledgerClient } = fakeClients();
     const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
     const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
@@ -136,7 +146,7 @@ describe('buildArSyncAdapters', () => {
         documentId: 'inv-1',
         lastModifiedDateTime: '2026-03-03T10:00:00Z',
       })
-    ).toBe('2026-03-03T10:00:00Z');
+    ).toBe('inv-1');
   });
 
   it('returns the string form of entryNo as the ledger cursor', () => {
