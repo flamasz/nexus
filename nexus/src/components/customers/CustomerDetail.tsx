@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDate, formatMoney } from "@/lib/format";
 import {
   BusinessCentralCustomer,
   BusinessCentralCustomerLedgerEntry,
@@ -15,28 +16,6 @@ interface CustomerDetailProps {
   customer: BusinessCentralCustomer;
   invoices: BusinessCentralSalesInvoice[];
   ledgerEntries: BusinessCentralCustomerLedgerEntry[];
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString();
-  } catch {
-    return value;
-  }
-}
-
-function formatMoney(value: number | null, currencyCode: string | null): string {
-  if (value === null) return "—";
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyCode || "USD",
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return value.toFixed(2);
-  }
 }
 
 function ReadonlyField({ label, value }: { label: string; value: React.ReactNode }) {

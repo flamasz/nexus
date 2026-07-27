@@ -8,6 +8,7 @@ import {
   canViewReceivables,
 } from '@/lib/auth/permissions';
 import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
+import type { AgingRow } from '@/lib/businessCentral/agingSummary';
 import { buildArSyncAdapters } from '@/lib/businessCentral/arSyncAdapters';
 import { createBcClientForOrg } from '@/lib/businessCentral/client';
 import { createCustomerLedgerClientForOrg } from '@/lib/businessCentral/customerLedgerClient';
@@ -249,6 +250,26 @@ export async function getCustomerDetail(id: string): Promise<{
     invoices: (invoices ?? []) as BusinessCentralSalesInvoice[],
     ledgerEntries: (ledgerResult.data ?? []) as BusinessCentralCustomerLedgerEntry[],
   };
+}
+
+export async function getAgingPageData(): Promise<{ rows: AgingRow[]; asOfDate: string | null }> {
+  const { orgId, user } = await requirePermission(
+    canViewReceivables,
+    'You do not have permission to view receivables'
+  );
+  const supabase = createServiceClient();
+  const connection = await resolveActiveBcConnection(orgId, user.id);
+  if (!connection) return { rows: [], asOfDate: null };
+
+  const { data } = await supabase
+    .from('business_central_ar_aging')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connection.id)
+    .order('days_overdue', { ascending: false });
+
+  const rows = (data ?? []) as AgingRow[];
+  return { rows, asOfDate: rows[0]?.as_of_date ?? null };
 }
 
 export type { SyncEntityResult, SyncEntityType };

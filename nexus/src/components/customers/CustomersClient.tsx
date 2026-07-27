@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { syncBusinessCentralReceivables } from "@/app/actions/businessCentralReceivables";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { BusinessCentralCustomer } from "@/types/database";
 import type { SyncEntityResult } from "@/app/actions/businessCentralReceivables";
@@ -15,23 +16,11 @@ import type { SyncEntityResult } from "@/app/actions/businessCentralReceivables"
 interface CustomersClientProps {
   customers: BusinessCentralCustomer[];
   canSync: boolean;
+  initialSearch?: string;
 }
 
-function formatMoney(value: number | null, currencyCode: string | null): string {
-  if (value === null) return "—";
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyCode || "USD",
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return value.toFixed(2);
-  }
-}
-
-export function CustomersClient({ customers, canSync }: CustomersClientProps) {
-  const [search, setSearch] = useState("");
+export function CustomersClient({ customers, canSync, initialSearch }: CustomersClientProps) {
+  const [search, setSearch] = useState(initialSearch ?? "");
   const [isPending, startTransition] = useTransition();
   const [syncResults, setSyncResults] = useState<SyncEntityResult[] | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
