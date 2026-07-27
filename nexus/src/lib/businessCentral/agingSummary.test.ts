@@ -44,5 +44,44 @@ describe('summarizeAging', () => {
     const summary = summarizeAging([]);
     expect(summary.total).toBe(0);
     expect(summary.buckets['90+']).toEqual({ count: 0, total: 0 });
+    expect(summary.currencyCodes).toEqual([]);
+  });
+
+  it('treats a null days_overdue as current', () => {
+    const summary = summarizeAging([
+      row({ id: 'a', days_overdue: null, remaining_amount: 150 }),
+    ]);
+    expect(summary.buckets.current).toEqual({ count: 1, total: 150 });
+  });
+
+  describe('currencyCodes', () => {
+    it('reports a single currency when all rows share one', () => {
+      const summary = summarizeAging([
+        row({ id: 'a', currency_code: 'USD' }),
+        row({ id: 'b', currency_code: 'USD' }),
+      ]);
+      expect(summary.currencyCodes).toEqual(['USD']);
+    });
+
+    it('reports multiple currencies when rows span more than one', () => {
+      const summary = summarizeAging([
+        row({ id: 'a', currency_code: 'USD' }),
+        row({ id: 'b', currency_code: 'EUR' }),
+      ]);
+      expect(summary.currencyCodes.sort()).toEqual(['EUR', 'USD']);
+    });
+
+    it('ignores null currency codes', () => {
+      const summary = summarizeAging([
+        row({ id: 'a', currency_code: null }),
+        row({ id: 'b', currency_code: null }),
+      ]);
+      expect(summary.currencyCodes).toEqual([]);
+    });
+
+    it('returns an empty array for no rows', () => {
+      const summary = summarizeAging([]);
+      expect(summary.currencyCodes).toEqual([]);
+    });
   });
 });

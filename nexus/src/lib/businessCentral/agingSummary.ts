@@ -16,6 +16,8 @@ export interface AgingRow {
 export interface AgingSummary {
   buckets: Record<AgingBucket, { count: number; total: number }>;
   total: number;
+  /** Distinct non-null currency codes present across the summarized rows. */
+  currencyCodes: string[];
 }
 
 export function summarizeAging(rows: AgingRow[]): AgingSummary {
@@ -24,6 +26,7 @@ export function summarizeAging(rows: AgingRow[]): AgingSummary {
   ) as Record<AgingBucket, { count: number; total: number }>;
 
   let total = 0;
+  const currencyCodes = new Set<string>();
 
   for (const row of rows) {
     const bucket = agingBucket(row.days_overdue);
@@ -31,7 +34,10 @@ export function summarizeAging(rows: AgingRow[]): AgingSummary {
     buckets[bucket].count += 1;
     buckets[bucket].total += amount;
     total += amount;
+    if (row.currency_code) {
+      currencyCodes.add(row.currency_code);
+    }
   }
 
-  return { buckets, total };
+  return { buckets, total, currencyCodes: Array.from(currencyCodes) };
 }
