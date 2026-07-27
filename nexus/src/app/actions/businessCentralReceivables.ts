@@ -10,13 +10,18 @@ import {
 import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
 import type { AgingRow } from '@/lib/businessCentral/agingSummary';
 import { buildArSyncAdapters } from '@/lib/businessCentral/arSyncAdapters';
-import { createBcClientForOrg } from '@/lib/businessCentral/client';
+import { createBcClientForOrg, type BcClient } from '@/lib/businessCentral/client';
 import { createCustomerLedgerClientForOrg } from '@/lib/businessCentral/customerLedgerClient';
 import {
   runAllEntitySyncs,
   type CheckpointStore,
   type SyncEntityResult,
 } from '@/lib/businessCentral/syncRunner';
+import {
+  syncSalesInvoiceLines,
+  type SalesInvoiceLineSyncDeps,
+} from '@/lib/businessCentral/salesInvoiceLineSync';
+import type { BcSalesInvoiceLine } from '@/lib/businessCentral/salesInvoiceLineMapper';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
   BusinessCentralCustomer,
@@ -74,6 +79,51 @@ function checkpointStore(
   };
 }
 
+function salesInvoiceLineSyncDeps(
+  supabase: SupabaseServiceClient,
+  organizationId: string,
+  connectionId: string,
+  bcClient: BcClient
+): SalesInvoiceLineSyncDeps {
+  const checkpoints = checkpointStore(supabase, organizationId);
+  return {
+    async listInvoiceIdsAfter(cursor, limit) {
+      // organization_id AND bc_connection_id are the only protection here:
+      // the service-role client bypasses row-level security.
+      let query = supabase
+        .from('business_central_sales_invoices')
+        .select('bc_invoice_id')
+        .eq('organization_id', organizationId)
+        .eq('bc_connection_id', connectionId)
+        .order('bc_invoice_id', { ascending: true })
+        .limit(limit);
+      if (cursor) {
+        query = query.gt('bc_invoice_id', cursor);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).map((row) => row.bc_invoice_id as string);
+    },
+    async fetchLinesForInvoice(invoiceId) {
+      // Edm.Guid literals are unquoted in OData v4 filters; no $orderby —
+      // ordering within a single invoice's lines is not needed.
+      return bcClient.listResourcePage<BcSalesInvoiceLine>('salesInvoiceLines', {
+        filter: `documentId eq ${invoiceId}`,
+        top: 500,
+      });
+    },
+    async upsertLines(rows) {
+      const { error } = await supabase
+        .from('business_central_sales_invoice_lines')
+        .upsert(rows, { onConflict: 'organization_id,bc_connection_id,bc_company_id,bc_line_id' });
+      if (error) throw error;
+    },
+    readCheckpoint: () => checkpoints.read(connectionId, 'sales_invoice_line'),
+    writeCheckpoint: (patch) => checkpoints.write(connectionId, 'sales_invoice_line', patch),
+    nowMs: () => Date.now(),
+  };
+}
+
 export async function syncBusinessCentralReceivables(): Promise<SyncEntityResult[]> {
   const { orgId, user } = await requirePermission(
     canEditBusinessCentralItems,
@@ -111,6 +161,15 @@ export async function syncBusinessCentralReceivables(): Promise<SyncEntityResult
     const ledgerClient = await createCustomerLedgerClientForOrg(orgId, connection.id);
     const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
 
+    const started = Date.now();
+    const ctx = {
+      organizationId: orgId,
+      connectionId: connection.id,
+      environment: connection.environment,
+      companyId: connection.company_id,
+      now,
+    };
+
     const results = await runAllEntitySyncs(
       {
         checkpoints: checkpointStore(supabase, orgId),
@@ -121,15 +180,21 @@ export async function syncBusinessCentralReceivables(): Promise<SyncEntityResult
         nowMs: () => Date.now(),
       },
       adapters,
-      {
-        organizationId: orgId,
-        connectionId: connection.id,
-        environment: connection.environment,
-        companyId: connection.company_id,
-        now,
-      },
+      ctx,
       SYNC_BUDGET_MS
     );
+
+    // Sales invoice lines get their own dedicated sync path (see
+    // salesInvoiceLineSync.ts) — BC cannot query them as a flat collection,
+    // so they are NOT one of the shared-runner adapters above. Give it
+    // whatever time budget remains from the overall sync budget.
+    const linesRemaining = Math.max(SYNC_BUDGET_MS - (Date.now() - started), 0);
+    const linesResult = await syncSalesInvoiceLines(
+      salesInvoiceLineSyncDeps(supabase, orgId, connection.id, bcClient),
+      ctx,
+      linesRemaining
+    );
+    results.push(linesResult);
 
     const failures = results.filter((r) => r.error);
     await supabase

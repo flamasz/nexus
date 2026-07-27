@@ -28,13 +28,12 @@ function fakeClients() {
 }
 
 describe('buildArSyncAdapters', () => {
-  it('returns the four entities in dependency order', () => {
+  it('returns the three entities in dependency order', () => {
     const { bcClient, ledgerClient } = fakeClients();
     const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
     expect(adapters.map((a) => a.entityType)).toEqual([
       'customer',
       'sales_invoice',
-      'sales_invoice_line',
       'customer_ledger_entry',
     ]);
   });
@@ -109,44 +108,6 @@ describe('buildArSyncAdapters', () => {
     expect(
       customers.cursorValue({ id: 'c', displayName: 'x', lastModifiedDateTime: '2026-03-03T10:00:00Z' })
     ).toBe('2026-03-03T10:00:00Z');
-  });
-
-  it('fetches sales invoice lines with the documentId ge cursor filter and correct orderBy', async () => {
-    const { bcClient, ledgerClient, listResourcePage } = fakeClients();
-    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
-    const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
-
-    await lines.fetchPage('inv-1', 500);
-
-    const call = listResourcePage.mock.calls[0];
-    expect(call[0]).toBe('salesInvoiceLines');
-    expect(call[1].filter).toBe('documentId ge inv-1');
-    expect(call[1].orderBy).toBe('documentId');
-    expect(call[1].top).toBe(500);
-  });
-
-  it('passes no filter for sales invoice lines on a first run', async () => {
-    const { bcClient, ledgerClient, listResourcePage } = fakeClients();
-    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
-    const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
-
-    await lines.fetchPage(null, 500);
-
-    expect(listResourcePage.mock.calls[0][1].filter).toBeUndefined();
-  });
-
-  it('uses documentId as the cursor for sales invoice lines, since they have no lastModifiedDateTime', () => {
-    const { bcClient, ledgerClient } = fakeClients();
-    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
-    const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
-
-    expect(
-      lines.cursorValue({
-        id: 'line-1',
-        documentId: 'inv-1',
-        lastModifiedDateTime: '2026-03-03T10:00:00Z',
-      })
-    ).toBe('inv-1');
   });
 
   it('returns the string form of entryNo as the ledger cursor', () => {

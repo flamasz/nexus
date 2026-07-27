@@ -196,6 +196,25 @@ describe('Business Central client', () => {
     expect(decodeURIComponent(filterMatch![1])).toBe(filter);
   });
 
+  it('omits $orderby from listResourcePage when orderBy is not supplied', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ value: [{ id: 'line-1' }] }));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    const result = await client.listResourcePage('salesInvoiceLines', {
+      filter: 'documentId eq 123',
+      top: 500,
+    });
+
+    expect(result).toEqual([{ id: 'line-1' }]);
+    const [url] = fetchImpl.mock.calls[1];
+    expect(String(url)).toContain('/companies(company-id)/salesInvoiceLines');
+    expect(String(url)).toContain('$top=500');
+    expect(String(url)).not.toContain('$orderby');
+  });
+
   it('returns an empty array when the response has no value field', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

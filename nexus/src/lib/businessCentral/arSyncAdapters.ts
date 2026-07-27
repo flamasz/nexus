@@ -10,10 +10,6 @@ import {
   type BcSalesInvoice,
 } from './salesInvoiceMapper';
 import {
-  mapBcSalesInvoiceLineToDb,
-  type BcSalesInvoiceLine,
-} from './salesInvoiceLineMapper';
-import {
   mapBcLedgerEntryToDb,
   type BcCustomerLedgerEntry,
   type CustomerLedgerClient,
@@ -101,40 +97,6 @@ export function buildArSyncAdapters(input: ArSyncAdapterInput): SyncEntityAdapte
     cursorValue: (invoice) => invoice.lastModifiedDateTime ?? '',
   };
 
-  const salesInvoiceLines: SyncEntityAdapter<BcSalesInvoiceLine> = {
-    entityType: 'sales_invoice_line',
-    table: 'business_central_sales_invoice_lines',
-    conflictTarget: 'organization_id,bc_connection_id,bc_company_id,bc_line_id',
-    pageSize: AR_SYNC_PAGE_SIZE,
-    // salesInvoiceLine has NO lastModifiedDateTime in BC API v2.0 — this
-    // tenant rejects it with "Could not find a property named
-    // 'lastModifiedDateTime' on type 'Microsoft.NAV.salesInvoiceLine'". So
-    // there is no delta field for lines at all; we keyset on documentId
-    // instead, which gives a resumable full scan. `ge` (not `gt`) because all
-    // lines of one invoice share a documentId and a tie group straddling a
-    // page boundary would otherwise be dropped; the re-fetch is harmless
-    // because writes are idempotent upserts. An invoice with more than
-    // pageSize lines would trip the runner's cursor-did-not-advance guard.
-    fetchPage: (cursor, top) =>
-      bcClient.listResourcePage<BcSalesInvoiceLine>('salesInvoiceLines', {
-        filter: cursor ? `documentId ge ${cursor}` : undefined,
-        orderBy: 'documentId',
-        top,
-      }),
-    map: (ctx, line) =>
-      mapBcSalesInvoiceLineToDb({
-        organizationId: ctx.organizationId,
-        connectionId: ctx.connectionId,
-        environment: ctx.environment,
-        companyId: ctx.companyId,
-        line,
-        now: ctx.now,
-      }) as Record<string, unknown>,
-    // Matches the documentId keyset above. Edm.Guid literals are unquoted in
-    // OData v4 filters, so the raw value interpolates directly.
-    cursorValue: (line) => line.documentId,
-  };
-
   const ledgerEntries: SyncEntityAdapter<BcCustomerLedgerEntry> = {
     entityType: 'customer_ledger_entry',
     table: 'business_central_customer_ledger_entries',
@@ -153,11 +115,11 @@ export function buildArSyncAdapters(input: ArSyncAdapterInput): SyncEntityAdapte
     cursorValue: (entry) => String(entry.entryNo),
   };
 
-  // Dependency order: customers, then invoices, then their lines, then ledger entries.
-  return [
-    customers,
-    salesInvoices,
-    salesInvoiceLines,
-    ledgerEntries,
-  ] as SyncEntityAdapter<unknown>[];
+  // Dependency order: customers, then invoices, then ledger entries. Sales
+  // invoice lines are NOT included here — BC cannot query salesInvoiceLines
+  // as a flat collection at all (no delta field, and a bare fetch errors with
+  // "You must specify an Id or a Document Id to get the lines"). Lines are
+  // synced separately via salesInvoiceLineSync.ts, keyed off invoices already
+  // mirrored in our own database.
+  return [customers, salesInvoices, ledgerEntries] as SyncEntityAdapter<unknown>[];
 }
