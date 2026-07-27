@@ -302,4 +302,8 @@ export async function getSalesInvoicesPageData(): Promise<{
   return { invoices: (data ?? []) as BusinessCentralSalesInvoice[] };
 }
 
-export type { SyncEntityResult, SyncEntityType };
+// No type re-exports here. A 'use server' module may only export async
+// functions, and Turbopack's dev transform sweeps even `export type` into the
+// server-actions manifest, producing a build error. Consumers import
+// SyncEntityResult from @/lib/businessCentral/syncRunner and SyncEntityType
+// from @/types/database directly.

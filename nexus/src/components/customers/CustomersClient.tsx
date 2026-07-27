@@ -11,7 +11,7 @@ import { syncBusinessCentralReceivables } from "@/app/actions/businessCentralRec
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { BusinessCentralCustomer } from "@/types/database";
-import type { SyncEntityResult } from "@/app/actions/businessCentralReceivables";
+import type { SyncEntityResult } from "@/lib/businessCentral/syncRunner";
 
 interface CustomersClientProps {
   customers: BusinessCentralCustomer[];
