@@ -23,7 +23,6 @@ import {
   BusinessCentralCustomerLedgerEntry,
   BusinessCentralSalesInvoice,
   BusinessCentralSyncCheckpoint,
-  SyncEntityType,
 } from '@/types/database';
 
 // Task 8's runner deliberately does NOT skip later entities when the budget is
