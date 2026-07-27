@@ -889,7 +889,7 @@ export interface Database {
           updated_at?: string;
           tax_liable?: boolean;
           bc_raw_payload?: Record<string, unknown>;
-          sync_status?: string;
+          sync_status?: BusinessCentralSyncStatus;
         };
         Update: Partial<Omit<BusinessCentralCustomer, "id">>;
       };
@@ -907,7 +907,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           bc_raw_payload?: Record<string, unknown>;
-          sync_status?: string;
+          sync_status?: BusinessCentralSyncStatus;
         };
         Update: Partial<Omit<BusinessCentralSalesInvoice, "id">>;
       };
@@ -1006,7 +1006,7 @@ export interface BusinessCentralCustomer {
   balance: number | null;
   overdue_amount: number | null;
   bc_raw_payload: Record<string, unknown>;
-  sync_status: string;
+  sync_status: BusinessCentralSyncStatus;
   sync_error: string | null;
   last_synced_at: string | null;
   last_pulled_at: string | null;
@@ -1041,7 +1041,7 @@ export interface BusinessCentralSalesInvoice {
   total_amount_including_tax: number | null;
   status: string | null;
   bc_raw_payload: Record<string, unknown>;
-  sync_status: string;
+  sync_status: BusinessCentralSyncStatus;
   sync_error: string | null;
   last_synced_at: string | null;
   last_pulled_at: string | null;
