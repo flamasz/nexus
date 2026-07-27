@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { canAccessArtworkWorkspace, canViewCustomers, resolveUserAccess } from '@/lib/auth/permissions';
+import {
+  canAccessArtworkWorkspace,
+  canViewCustomers,
+  canViewReceivables,
+  resolveUserAccess,
+} from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/database';
 import {
@@ -17,6 +22,7 @@ import {
   Menu,
   Package,
   Users,
+  Clock,
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -54,7 +60,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Receivables',
-    items: [{ label: 'Customers', href: '/customers', icon: Users }],
+    items: [
+      { label: 'Customers', href: '/customers', icon: Users },
+      { label: 'Receivables', href: '/receivables', icon: Clock },
+      { label: 'Sales invoices', href: '/receivables/invoices', icon: FileText },
+    ],
   },
   {
     title: 'System',
@@ -94,6 +104,9 @@ export function AppNav({
       }
       if (item.href === '/customers') {
         return canViewCustomers(access);
+      }
+      if (item.href === '/receivables' || item.href === '/receivables/invoices') {
+        return canViewReceivables(access);
       }
 
       return true;

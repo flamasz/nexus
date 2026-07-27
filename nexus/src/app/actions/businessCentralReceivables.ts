@@ -272,4 +272,26 @@ export async function getAgingPageData(): Promise<{ rows: AgingRow[]; asOfDate: 
   return { rows, asOfDate: rows[0]?.as_of_date ?? null };
 }
 
+export async function getSalesInvoicesPageData(): Promise<{
+  invoices: BusinessCentralSalesInvoice[];
+}> {
+  const { orgId, user } = await requirePermission(
+    canViewReceivables,
+    'You do not have permission to view receivables'
+  );
+  const supabase = createServiceClient();
+  const connection = await resolveActiveBcConnection(orgId, user.id);
+  if (!connection) return { invoices: [] };
+
+  const { data } = await supabase
+    .from('business_central_sales_invoices')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connection.id)
+    .order('posting_date', { ascending: false })
+    .limit(500);
+
+  return { invoices: (data ?? []) as BusinessCentralSalesInvoice[] };
+}
+
 export type { SyncEntityResult, SyncEntityType };
