@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth/currentUserAccess';
 import {
   canEditBusinessCentralItems,
+  canViewCustomers,
   canViewReceivables,
 } from '@/lib/auth/permissions';
 import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
@@ -16,7 +17,13 @@ import {
   type SyncEntityResult,
 } from '@/lib/businessCentral/syncRunner';
 import { createServiceClient } from '@/lib/supabase/server';
-import { BusinessCentralSyncCheckpoint, SyncEntityType } from '@/types/database';
+import {
+  BusinessCentralCustomer,
+  BusinessCentralCustomerLedgerEntry,
+  BusinessCentralSalesInvoice,
+  BusinessCentralSyncCheckpoint,
+  SyncEntityType,
+} from '@/types/database';
 
 // Task 8's runner deliberately does NOT skip later entities when the budget is
 // exhausted — each still processes one page, so worst-case wall time is this
@@ -165,6 +172,78 @@ export async function getReceivablesSyncStatus(): Promise<BusinessCentralSyncChe
     .eq('bc_connection_id', connection.id);
 
   return (data ?? []) as BusinessCentralSyncCheckpoint[];
+}
+
+export async function getCustomersPageData(): Promise<{
+  customers: BusinessCentralCustomer[];
+  canSync: boolean;
+}> {
+  const { orgId, user, access } = await requirePermission(
+    canViewCustomers,
+    'You do not have permission to view customers'
+  );
+  const supabase = createServiceClient();
+  const connection = await resolveActiveBcConnection(orgId, user.id);
+  if (!connection) return { customers: [], canSync: false };
+
+  const { data } = await supabase
+    .from('business_central_customers')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connection.id)
+    .order('display_name', { ascending: true });
+
+  return {
+    customers: (data ?? []) as BusinessCentralCustomer[],
+    canSync: canEditBusinessCentralItems(access),
+  };
+}
+
+export async function getCustomerDetail(id: string): Promise<{
+  customer: BusinessCentralCustomer;
+  invoices: BusinessCentralSalesInvoice[];
+  ledgerEntries: BusinessCentralCustomerLedgerEntry[];
+} | null> {
+  const { orgId, user } = await requirePermission(
+    canViewCustomers,
+    'You do not have permission to view customers'
+  );
+  const supabase = createServiceClient();
+  const connection = await resolveActiveBcConnection(orgId, user.id);
+  if (!connection) return null;
+
+  const { data: customer } = await supabase
+    .from('business_central_customers')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', connection.id)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!customer) return null;
+
+  const [{ data: invoices }, { data: ledgerEntries }] = await Promise.all([
+    supabase
+      .from('business_central_sales_invoices')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('bc_connection_id', connection.id)
+      .eq('bc_customer_id', customer.bc_customer_id)
+      .order('posting_date', { ascending: false }),
+    supabase
+      .from('business_central_customer_ledger_entries')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('bc_connection_id', connection.id)
+      .eq('customer_no', customer.bc_customer_number ?? '')
+      .order('posting_date', { ascending: false }),
+  ]);
+
+  return {
+    customer: customer as BusinessCentralCustomer,
+    invoices: (invoices ?? []) as BusinessCentralSalesInvoice[],
+    ledgerEntries: (ledgerEntries ?? []) as BusinessCentralCustomerLedgerEntry[],
+  };
 }
 
 export type { SyncEntityResult, SyncEntityType };
