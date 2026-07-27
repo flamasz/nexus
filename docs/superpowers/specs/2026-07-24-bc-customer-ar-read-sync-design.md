@@ -115,7 +115,7 @@ Two implementation requirements:
 
 ### Changes to existing objects
 
-1. **`business_central_sync_events`** is item-scoped via an `item_id` foreign key. Add nullable
+1. **`business_central_item_sync_events`** is item-scoped via an `item_id` foreign key. Add nullable
    `entity_type` and `entity_id` columns so all four new entities log to the same audit trail.
    `item_id` is left in place; existing item-sync writes are unchanged.
 2. **`business_central_sync_status` enum** is reused rather than duplicated. The read-only mirror

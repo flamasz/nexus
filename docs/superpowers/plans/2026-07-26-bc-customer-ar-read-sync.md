@@ -194,7 +194,7 @@ create table if not exists public.business_central_sync_checkpoints (
 
 -- Generalize the sync event log beyond items. item_id is left untouched so
 -- existing item-sync writes keep working unchanged.
-alter table public.business_central_sync_events
+alter table public.business_central_item_sync_events
   add column if not exists entity_type text,
   add column if not exists entity_id uuid;
 
