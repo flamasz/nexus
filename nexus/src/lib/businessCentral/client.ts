@@ -358,12 +358,14 @@ export function createBcClient(config: BcClientConfig): BcClient {
     resource: string,
     options: { filter?: string; orderBy: string; top: number },
   ): Promise<T[]> {
-    const params = new URLSearchParams();
-    if (options.filter) params.set("$filter", options.filter);
-    params.set("$orderby", options.orderBy);
-    params.set("$top", String(options.top));
+    const params: string[] = [];
+    if (options.filter) {
+      params.push(`$filter=${encodeURIComponent(options.filter)}`);
+    }
+    params.push(`$orderby=${encodeURIComponent(options.orderBy)}`);
+    params.push(`$top=${encodeURIComponent(String(options.top))}`);
     const response = await request<BcListResponse<T>>(
-      `${companyPath(`/${resource}`)}?${params.toString()}`,
+      `${companyPath(`/${resource}`)}?${params.join("&")}`,
     );
     return response.value ?? [];
   }

@@ -98,6 +98,59 @@ describe('buildArSyncAdapters', () => {
     ).toBe('2026-03-03T10:00:00Z');
   });
 
+  it('fetches sales invoice lines with the ge cursor filter and correct orderBy', async () => {
+    const { bcClient, ledgerClient, listResourcePage } = fakeClients();
+    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
+    const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
+
+    await lines.fetchPage('2026-03-01T00:00:00Z', 500);
+
+    const call = listResourcePage.mock.calls[0];
+    expect(call[0]).toBe('salesInvoiceLines');
+    expect(call[1].filter).toBe('lastModifiedDateTime ge 2026-03-01T00:00:00Z');
+    expect(call[1].orderBy).toBe('lastModifiedDateTime');
+    expect(call[1].top).toBe(500);
+  });
+
+  it('uses lastModifiedDateTime as the cursor for sales invoice lines', () => {
+    const { bcClient, ledgerClient } = fakeClients();
+    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
+    const lines = adapters.find((a) => a.entityType === 'sales_invoice_line')!;
+
+    expect(
+      lines.cursorValue({
+        id: 'line-1',
+        documentId: 'inv-1',
+        lastModifiedDateTime: '2026-03-03T10:00:00Z',
+      })
+    ).toBe('2026-03-03T10:00:00Z');
+  });
+
+  it('returns the string form of entryNo as the ledger cursor', () => {
+    const { bcClient, ledgerClient } = fakeClients();
+    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
+    const ledger = adapters.find((a) => a.entityType === 'customer_ledger_entry')!;
+
+    expect(
+      ledger.cursorValue({
+        entryNo: 4700,
+        customerNo: 'CUST-1',
+        postingDate: '2026-03-01',
+        documentType: 'Invoice',
+        documentNo: 'INV-1',
+        description: '',
+        dueDate: '2026-03-31',
+        currencyCode: '',
+        amount: 100,
+        remainingAmount: 100,
+        open: true,
+        closedAtDate: '',
+        externalDocumentNo: '',
+        raw: {},
+      })
+    ).toBe('4700');
+  });
+
   it('drops a Draft invoice returned by the API as a client-side guard', async () => {
     const { bcClient, ledgerClient, listResourcePage } = fakeClients();
     listResourcePage.mockImplementation(async () => [
