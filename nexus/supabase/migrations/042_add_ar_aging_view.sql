@@ -3,7 +3,14 @@
 -- own time zone. Bucketing lives in TypeScript (src/lib/businessCentral/aging.ts)
 -- so the boundaries have exactly one definition.
 
-create or replace view public.business_central_ar_aging as
+-- security_invoker = true makes Postgres evaluate row-level security using the
+-- querying user's privileges instead of the view owner's. Supabase migrations
+-- run as a privileged (BYPASSRLS) role, so without this option the org-scoped
+-- bc_cust_ledger_select policy on business_central_customer_ledger_entries
+-- would never be enforced for clients querying this view via PostgREST,
+-- letting any authenticated user read every organization's receivables.
+create or replace view public.business_central_ar_aging
+with (security_invoker = true) as
 select
   e.id,
   e.organization_id,
@@ -23,5 +30,5 @@ select
     else ((now() at time zone coalesce(conn.time_zone, 'UTC'))::date - e.due_date)
   end as days_overdue
 from public.business_central_customer_ledger_entries e
-join public.business_central_connections conn on conn.id = e.bc_connection_id
+left join public.business_central_connections conn on conn.id = e.bc_connection_id
 where e.open;
