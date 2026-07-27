@@ -873,6 +873,84 @@ export interface Database {
         };
         Update: Partial<Omit<BusinessCentralItemSyncEvent, "id">>;
       };
+      business_central_customers: {
+        Row: BusinessCentralCustomer;
+        Insert: Omit<
+          BusinessCentralCustomer,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "tax_liable"
+          | "bc_raw_payload"
+          | "sync_status"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          tax_liable?: boolean;
+          bc_raw_payload?: Record<string, unknown>;
+          sync_status?: string;
+        };
+        Update: Partial<Omit<BusinessCentralCustomer, "id">>;
+      };
+      business_central_sales_invoices: {
+        Row: BusinessCentralSalesInvoice;
+        Insert: Omit<
+          BusinessCentralSalesInvoice,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "bc_raw_payload"
+          | "sync_status"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          bc_raw_payload?: Record<string, unknown>;
+          sync_status?: string;
+        };
+        Update: Partial<Omit<BusinessCentralSalesInvoice, "id">>;
+      };
+      business_central_sales_invoice_lines: {
+        Row: BusinessCentralSalesInvoiceLine;
+        Insert: Omit<
+          BusinessCentralSalesInvoiceLine,
+          "id" | "created_at" | "updated_at" | "bc_raw_payload"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          bc_raw_payload?: Record<string, unknown>;
+        };
+        Update: Partial<Omit<BusinessCentralSalesInvoiceLine, "id">>;
+      };
+      business_central_customer_ledger_entries: {
+        Row: BusinessCentralCustomerLedgerEntry;
+        Insert: Omit<
+          BusinessCentralCustomerLedgerEntry,
+          "id" | "created_at" | "updated_at" | "open" | "bc_raw_payload"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          open?: boolean;
+          bc_raw_payload?: Record<string, unknown>;
+        };
+        Update: Partial<Omit<BusinessCentralCustomerLedgerEntry, "id">>;
+      };
+      business_central_sync_checkpoints: {
+        Row: BusinessCentralSyncCheckpoint;
+        Insert: Omit<
+          BusinessCentralSyncCheckpoint,
+          "id" | "phase" | "records_synced" | "updated_at"
+        > & {
+          id?: string;
+          phase?: "backfill" | "delta";
+          records_synced?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<BusinessCentralSyncCheckpoint, "id">>;
+      };
       org_order_settings: {
         Row: OrgOrderSettings;
         Insert: Omit<
