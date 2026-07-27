@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveUserAccess } from './permissions';
+import { DEFAULT_FUNCTIONAL_ROLES, resolveUserAccess } from './permissions';
 import { User } from '@/types/database';
 
 const baseUser: User = {
@@ -74,5 +74,28 @@ describe('resolveUserAccess invoice permissions', () => {
 
     expect(access.canViewInvoices).toBe(false);
     expect(access.canAssignInvoices).toBe(false);
+  });
+});
+
+describe('receivables permissions', () => {
+  it('denies customers and receivables to a default non-admin user', () => {
+    const access = resolveUserAccess({ role: 'user', permissions: null });
+    expect(access.canViewCustomers).toBe(false);
+    expect(access.canViewReceivables).toBe(false);
+  });
+
+  it('grants both to an admin', () => {
+    const access = resolveUserAccess({ role: 'admin', permissions: null });
+    expect(access.canViewCustomers).toBe(true);
+    expect(access.canViewReceivables).toBe(true);
+  });
+
+  it('honours per-user overrides independently', () => {
+    const access = resolveUserAccess({
+      role: 'user',
+      permissions: { functionalRoles: DEFAULT_FUNCTIONAL_ROLES, overrides: { viewCustomers: true } },
+    });
+    expect(access.canViewCustomers).toBe(true);
+    expect(access.canViewReceivables).toBe(false);
   });
 });
