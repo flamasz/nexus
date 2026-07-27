@@ -222,7 +222,7 @@ export async function getCustomerDetail(id: string): Promise<{
 
   if (!customer) return null;
 
-  const [{ data: invoices }, { data: ledgerEntries }] = await Promise.all([
+  const [{ data: invoices }, ledgerResult] = await Promise.all([
     supabase
       .from('business_central_sales_invoices')
       .select('*')
@@ -230,19 +230,24 @@ export async function getCustomerDetail(id: string): Promise<{
       .eq('bc_connection_id', connection.id)
       .eq('bc_customer_id', customer.bc_customer_id)
       .order('posting_date', { ascending: false }),
-    supabase
-      .from('business_central_customer_ledger_entries')
-      .select('*')
-      .eq('organization_id', orgId)
-      .eq('bc_connection_id', connection.id)
-      .eq('customer_no', customer.bc_customer_number ?? '')
-      .order('posting_date', { ascending: false }),
+    // Guard: A null or empty customer number cannot legitimately match ledger entries
+    // by number, and querying for empty string ('') would incorrectly return orphaned
+    // ledger rows whose customer_no was stored as empty. Return empty results instead.
+    customer.bc_customer_number?.trim()
+      ? supabase
+          .from('business_central_customer_ledger_entries')
+          .select('*')
+          .eq('organization_id', orgId)
+          .eq('bc_connection_id', connection.id)
+          .eq('customer_no', customer.bc_customer_number)
+          .order('posting_date', { ascending: false })
+      : Promise.resolve({ data: [] as BusinessCentralCustomerLedgerEntry[] }),
   ]);
 
   return {
     customer: customer as BusinessCentralCustomer,
     invoices: (invoices ?? []) as BusinessCentralSalesInvoice[],
-    ledgerEntries: (ledgerEntries ?? []) as BusinessCentralCustomerLedgerEntry[],
+    ledgerEntries: (ledgerResult.data ?? []) as BusinessCentralCustomerLedgerEntry[],
   };
 }
 
