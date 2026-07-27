@@ -83,6 +83,7 @@ describe('mapBcCustomerToDb', () => {
     expect(withDetails.overdue_amount).toBe(1200);
 
     const withoutDetails = mapBcCustomerToDb({ ...input, customer: baseCustomer });
+    expect(withoutDetails.balance).toBe(4200.5);
     expect(withoutDetails.overdue_amount).toBeNull();
   });
 
@@ -93,5 +94,16 @@ describe('mapBcCustomerToDb', () => {
     expect(row.last_synced_at).toBe('2026-03-04T00:00:00Z');
     expect(row.last_pulled_at).toBe('2026-03-04T00:00:00Z');
     expect(row.sync_error).toBeNull();
+  });
+
+  it('preserves a legitimate zero balance from financial details', () => {
+    const row = mapBcCustomerToDb({
+      ...input,
+      customer: {
+        ...baseCustomer,
+        customerFinancialDetails: { balance: 0 },
+      },
+    });
+    expect(row.balance).toBe(0);
   });
 });
