@@ -944,12 +944,19 @@ export interface Database {
         Row: BusinessCentralSyncCheckpoint;
         Insert: Omit<
           BusinessCentralSyncCheckpoint,
-          "id" | "phase" | "records_synced" | "updated_at"
+          | "id"
+          | "phase"
+          | "records_synced"
+          | "updated_at"
+          | "completed_full_pass"
+          | "last_completed_at"
         > & {
           id?: string;
           phase?: "backfill" | "delta";
           records_synced?: number;
           updated_at?: string;
+          completed_full_pass?: boolean;
+          last_completed_at?: string | null;
         };
         Update: Partial<Omit<BusinessCentralSyncCheckpoint, "id">>;
       };
@@ -1112,5 +1119,7 @@ export interface BusinessCentralSyncCheckpoint {
   cursor_value: string | null;
   records_synced: number;
   last_error: string | null;
+  completed_full_pass: boolean;
+  last_completed_at: string | null;
   updated_at: string;
 }

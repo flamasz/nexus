@@ -38,7 +38,12 @@ export interface CheckpointStore {
   write(
     connectionId: string,
     entityType: SyncEntityType,
-    patch: { cursor_value: string | null; records_synced: number; last_error: string | null }
+    patch: {
+      cursor_value: string | null;
+      records_synced: number;
+      last_error: string | null;
+      complete: boolean;
+    }
   ): Promise<void>;
 }
 
@@ -87,14 +92,15 @@ export async function runEntitySync<TRemote>(
       const page = await adapter.fetchPage(cursor, adapter.pageSize);
 
       if (page.length === 0) {
+        complete = true;
         // Clear any stale last_error: a clean catch-up run is the steady state
         // and must not leave the entity displaying a previous failure.
         await deps.checkpoints.write(ctx.connectionId, adapter.entityType, {
           cursor_value: cursor,
           records_synced: (checkpoint?.records_synced ?? 0) + recordsSynced,
           last_error: null,
+          complete,
         });
-        complete = true;
         break;
       }
 
@@ -103,15 +109,16 @@ export async function runEntitySync<TRemote>(
 
       cursor = adapter.cursorValue(page[page.length - 1]);
       recordsSynced += page.length;
+      complete = page.length < adapter.pageSize;
 
       await deps.checkpoints.write(ctx.connectionId, adapter.entityType, {
         cursor_value: cursor,
         records_synced: (checkpoint?.records_synced ?? 0) + recordsSynced,
         last_error: null,
+        complete,
       });
 
-      if (page.length < adapter.pageSize) {
-        complete = true;
+      if (complete) {
         break;
       }
 
@@ -143,6 +150,7 @@ export async function runEntitySync<TRemote>(
         cursor_value: cursor,
         records_synced: (checkpoint?.records_synced ?? 0) + recordsSynced,
         last_error: message,
+        complete: false,
       });
     } catch {
       // Intentionally swallowed: the returned error stays the original one.

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,20 +18,16 @@ interface AgingDashboardProps {
   syncStatus: BusinessCentralSyncCheckpoint[];
 }
 
-// The `business_central_sync_checkpoints` table has no explicit "backfill
-// complete" flag — the sync runner only ever knows completion transiently,
-// for the single request that just ran it, and that signal is never
-// persisted. So the only checkpoint-derived signals we can trust for the
-// entity aging is actually built from (`customer_ledger_entry`) are:
+// The `business_central_sync_checkpoints` table persists `completed_full_pass`
+// and `last_completed_at` per entity, so the entity aging is actually built
+// from (`customer_ledger_entry`) can be judged as one of three states:
 //   - no checkpoint row at all -> this connection has never been synced.
-//   - a checkpoint row with `last_error` set -> the most recent sync attempt
-//     failed, so the ledger data behind aging is known-incomplete (an
-//     unpublished OData page is an expected failure mode here).
-// Neither signal proves an error-free, in-progress backfill (across several
-// manual sync clicks with no failures) is complete. We deliberately do not
-// invent a schema field to close that gap; instead we surface "last synced"
-// and the last error plainly and let the operator judge, rather than
-// asserting a completeness we cannot verify.
+//   - a checkpoint row with `last_error` set, or `completed_full_pass` still
+//     false -> the ledger backfill is known-incomplete (a still-in-progress,
+//     multi-click backfill, or a failed sync attempt), so totals are partial.
+//   - a checkpoint row with `completed_full_pass` true and no `last_error` ->
+//     the ledger has finished a full pass cleanly and totals reflect the
+//     whole open ledger as of `last_completed_at`.
 function ledgerEntryStatus(syncStatus: BusinessCentralSyncCheckpoint[]) {
   return syncStatus.find((row) => row.entity_type === "customer_ledger_entry") ?? null;
 }
@@ -59,12 +55,13 @@ export function AgingDashboard({ rows, asOfDate, syncStatus }: AgingDashboardPro
   const ledgerCheckpoint = useMemo(() => ledgerEntryStatus(syncStatus), [syncStatus]);
   const neverSynced = ledgerCheckpoint === null;
   const hasSyncError = Boolean(ledgerCheckpoint?.last_error);
-  // Sound but not provable from the schema: absence of a checkpoint means the
-  // ledger backfill has never run, and a checkpoint with a recorded error
-  // means the last attempt did not complete cleanly. Either way the aging
-  // totals below may be built from a partial slice of the customer ledger.
-  const backfillIncomplete = neverSynced || hasSyncError;
+  const notYetComplete = !neverSynced && !ledgerCheckpoint?.completed_full_pass;
+  // The totals below may be built from a partial slice of the customer ledger
+  // whenever the entity has never synced, has not yet finished a full pass
+  // (an in-progress, multi-click backfill), or errored on its last attempt.
+  const backfillIncomplete = neverSynced || notYetComplete || hasSyncError;
   const lastSyncedAt = ledgerCheckpoint?.updated_at ?? null;
+  const lastCompletedAt = ledgerCheckpoint?.last_completed_at ?? null;
 
   const summary = useMemo(() => summarizeAging(rows), [rows]);
   const sorted = useMemo(
@@ -107,11 +104,12 @@ export function AgingDashboard({ rows, asOfDate, syncStatus }: AgingDashboardPro
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 lg:p-4">
         <div className="space-y-4">
-          {backfillIncomplete && (
+          {backfillIncomplete ? (
             <div className="flex flex-wrap items-start gap-2 rounded-lg border border-destructive/40 bg-destructive-subtle px-3 py-2.5 text-xs text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <div className="space-y-1">
                 <p className="font-medium">
+                  <Badge variant="destructive">Partial data</Badge>{" "}
                   {neverSynced
                     ? "The customer ledger has never been synced — the totals below are empty, not complete."
                     : "The customer ledger backfill has not completed — the totals below are partial."}
@@ -123,6 +121,22 @@ export function AgingDashboard({ rows, asOfDate, syncStatus }: AgingDashboardPro
                     <span className="text-foreground-muted">
                       {ledgerCheckpoint.last_error}
                     </span>
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-start gap-2 rounded-lg border border-success/40 bg-success-subtle px-3 py-2.5 text-xs text-success">
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-medium">
+                  <Badge variant="success">Complete</Badge>{" "}
+                  The customer ledger backfill has finished a full pass with no
+                  errors — the totals below reflect the whole open ledger.
+                </p>
+                {lastCompletedAt && (
+                  <p className="text-foreground-muted">
+                    Completed {new Date(lastCompletedAt).toLocaleString()}
                   </p>
                 )}
               </div>

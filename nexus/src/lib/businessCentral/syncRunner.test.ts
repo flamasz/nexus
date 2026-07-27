@@ -26,6 +26,7 @@ interface CheckpointState {
   cursor_value: string | null;
   records_synced: number;
   last_error: string | null;
+  complete: boolean;
 }
 
 type FakeCheckpointStore = CheckpointStore & {
@@ -52,6 +53,7 @@ function makeCheckpointStore(initial: string | null = null): FakeCheckpointStore
       cursor_value: null,
       records_synced: 0,
       last_error: null,
+      complete: false,
     };
 
   return {
@@ -125,6 +127,7 @@ describe('runEntitySync', () => {
     expect(result.cursor).toBe('3');
     expect(result.error).toBeNull();
     expect(deps.upserted).toHaveLength(2);
+    expect(checkpoints.state.complete).toBe(true);
   });
 
   it('resumes from the stored cursor', async () => {
@@ -169,6 +172,7 @@ describe('runEntitySync', () => {
     expect(result.complete).toBe(false);
     expect(result.recordsSynced).toBe(4);
     expect(checkpoints.state.cursor_value).toBe('4');
+    expect(checkpoints.state.complete).toBe(false);
   });
 
   it('preserves the cursor when a page fails mid-run', async () => {
@@ -190,6 +194,7 @@ describe('runEntitySync', () => {
     // The first page's progress survives the failure.
     expect(checkpoints.state.cursor_value).toBe('2');
     expect(checkpoints.state.last_error).toBe('network blew up');
+    expect(checkpoints.state.complete).toBe(false);
   });
 
   it('does not upsert an empty page', async () => {
@@ -201,6 +206,7 @@ describe('runEntitySync', () => {
 
     expect(result.complete).toBe(true);
     expect(deps.upsert).not.toHaveBeenCalled();
+    expect(checkpoints.state.complete).toBe(true);
   });
 
   it('clears a stale last_error when a catch-up run finds nothing new', async () => {
@@ -209,6 +215,7 @@ describe('runEntitySync', () => {
       cursor_value: '42',
       records_synced: 7,
       last_error: 'network blew up',
+      complete: false,
     });
     const deps = makeDeps(checkpoints);
     const adapter = makeAdapter([[]]);
@@ -221,9 +228,11 @@ describe('runEntitySync', () => {
       cursor_value: '42',
       records_synced: 7,
       last_error: null,
+      complete: true,
     });
     expect(checkpoints.state.last_error).toBeNull();
     expect(checkpoints.state.cursor_value).toBe('42');
+    expect(checkpoints.state.complete).toBe(true);
   });
 
   it('stops with an explicit error when the cursor never advances', async () => {
@@ -245,6 +254,7 @@ describe('runEntitySync', () => {
     // Two fetches at most: the first establishes 'stuck', the second detects it.
     expect((adapter.fetchPage as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(2);
     expect(checkpoints.state.last_error).toMatch(/cursor did not advance/i);
+    expect(checkpoints.state.complete).toBe(false);
   });
 
   it('returns an error result instead of throwing when the checkpoint read fails', async () => {
@@ -322,16 +332,18 @@ describe('runAllEntitySyncs', () => {
     // Neither adapter may overwrite the other's checkpoint.
     expect(checkpoints.stateFor('customer').cursor_value).toBe('cust-9');
     expect(checkpoints.stateFor('customer_ledger_entry').cursor_value).toBe('ledger-4711');
+    expect(checkpoints.stateFor('customer').complete).toBe(true);
+    expect(checkpoints.stateFor('customer_ledger_entry').complete).toBe(true);
     expect(checkpoints.states.size).toBe(2);
     expect(checkpoints.write).toHaveBeenCalledWith(
       'conn-1',
       'customer',
-      expect.objectContaining({ cursor_value: 'cust-9' })
+      expect.objectContaining({ cursor_value: 'cust-9', complete: true })
     );
     expect(checkpoints.write).toHaveBeenCalledWith(
       'conn-1',
       'customer_ledger_entry',
-      expect.objectContaining({ cursor_value: 'ledger-4711' })
+      expect.objectContaining({ cursor_value: 'ledger-4711', complete: true })
     );
   });
 

@@ -51,6 +51,7 @@ function checkpointStore(
       return data ?? null;
     },
     async write(connectionId, entityType, patch) {
+      const now = new Date().toISOString();
       const { error } = await supabase.from('business_central_sync_checkpoints').upsert(
         {
           organization_id: organizationId,
@@ -60,7 +61,12 @@ function checkpointStore(
           cursor_value: patch.cursor_value,
           records_synced: patch.records_synced,
           last_error: patch.last_error,
-          updated_at: new Date().toISOString(),
+          completed_full_pass: patch.complete,
+          // Only stamp completion time when this write actually finished a full
+          // pass; an incomplete write must leave the previous completion time
+          // untouched rather than clearing or refreshing it.
+          ...(patch.complete ? { last_completed_at: now } : {}),
+          updated_at: now,
         },
         { onConflict: 'bc_connection_id,entity_type' }
       );
