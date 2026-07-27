@@ -272,3 +272,7 @@ export function canViewCustomers(access: ResolvedUserAccess): boolean {
 export function canViewReceivables(access: ResolvedUserAccess): boolean {
   return access.canViewReceivables;
 }
+
+export function canEditBusinessCentralItems(access: ResolvedUserAccess): boolean {
+  return access.isAdmin || access.canManageCatalog;
+}
