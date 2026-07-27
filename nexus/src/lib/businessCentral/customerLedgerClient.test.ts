@@ -51,10 +51,10 @@ describe('CUSTOMER_LEDGER_SERVICE_NAME', () => {
 
 describe('createCustomerLedgerClient', () => {
   it('requests entries after the cursor, ordered and paged', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({ value: [rawEntry] }), { status: 200 })
     );
-    const client = createCustomerLedgerClient(fakeBcClient(), 'CRONUS', fetchImpl as unknown as typeof fetch);
+    const client = createCustomerLedgerClient(fakeBcClient(), 'CRONUS', fetchImpl);
 
     const entries = await client.listEntriesAfter(4700, 500);
 
@@ -70,8 +70,8 @@ describe('createCustomerLedgerClient', () => {
   });
 
   it('raises a targeted error when the page is not published', async () => {
-    const fetchImpl = vi.fn(async () => new Response('Not Found', { status: 404 }));
-    const client = createCustomerLedgerClient(fakeBcClient(), 'CRONUS', fetchImpl as unknown as typeof fetch);
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response('Not Found', { status: 404 }));
+    const client = createCustomerLedgerClient(fakeBcClient(), 'CRONUS', fetchImpl);
 
     await expect(client.listEntriesAfter(0, 500)).rejects.toBeInstanceOf(
       CustomerLedgerPageUnavailableError
@@ -80,8 +80,8 @@ describe('createCustomerLedgerClient', () => {
   });
 
   it('raises the same targeted error when access is denied', async () => {
-    const fetchImpl = vi.fn(async () => new Response('Forbidden', { status: 403 }));
-    const client = createCustomerLedgerClient(fakeBcClient(), 'CRONUS', fetchImpl as unknown as typeof fetch);
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response('Forbidden', { status: 403 }));
+    const client = createCustomerLedgerClient(fakeBcClient(), 'CRONUS', fetchImpl);
 
     await expect(client.listEntriesAfter(0, 500)).rejects.toBeInstanceOf(
       CustomerLedgerPageUnavailableError
