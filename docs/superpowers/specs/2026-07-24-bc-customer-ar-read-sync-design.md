@@ -249,11 +249,30 @@ Follows the existing per-module colocated test pattern.
 
 Not code. These must be sequenced alongside implementation.
 
-1. **Publish Page 25 (*Cust. Ledger Entries*) as an OData web service** in each Business Central
-   environment, following the pattern used for Page 457 (`NoSeriesLines`). Ledger entry sync and
-   the aging view are non-functional until this exists; everything else works without it.
-2. **Confirm each connection's `time_zone`** is set correctly, since aging buckets depend on it.
-3. Apply the new migrations on deploy.
+1. ~~**Publish Page 25 (*Cust. Ledger Entries*) as an OData web service**~~ — **done (2026-07-26).**
+   Published in both production and TEST under the service name **`CustomerLedgerEntries`**.
+
+   The client hardcodes this service name as a named constant, matching how `noSeriesClient.ts`
+   embeds `NoSeriesLines` in its URL. Because the name is identical across both environments, it
+   does not need to be a per-connection setting; if the environments ever diverge, promoting the
+   constant to a column on `business_central_connections` is a contained change.
+
+   Resulting URL shape:
+   `{apiBaseUrl}/v2.0/{environment}/ODataV4/Company('{companyName}')/CustomerLedgerEntries`
+
+2. **Verify the app registration can read customer ledger entries.** Publishing the page exposes
+   it; permission sets decide whether Nexus's service credentials may read it. In BC under
+   *Microsoft Entra Applications*, the registration matching the connection's client ID must be
+   `Enabled` and hold a permission set granting read on the **Cust. Ledger Entry** table (table 21)
+   — `D365 BUS FULL ACCESS` suffices. Required in both environments.
+
+   Note that testing the OData URL in a browser does **not** verify this: the browser authenticates
+   as the signed-in user, not as the service principal. The first ledger sync from Nexus is the
+   authoritative test, and the degradation path in Error handling surfaces a clear error rather
+   than a silent empty result.
+
+3. **Confirm each connection's `time_zone`** is set correctly, since aging buckets depend on it.
+4. Apply the new migrations on deploy.
 
 ## Open questions
 
