@@ -230,7 +230,7 @@ export async function getCustomerDetail(id: string): Promise<{
       .eq('organization_id', orgId)
       .eq('bc_connection_id', connection.id)
       .eq('bc_customer_id', customer.bc_customer_id)
-      .order('posting_date', { ascending: false }),
+      .order('posting_date', { ascending: false, nullsFirst: false }),
     // Guard: A null or empty customer number cannot legitimately match ledger entries
     // by number, and querying for empty string ('') would incorrectly return orphaned
     // ledger rows whose customer_no was stored as empty. Return empty results instead.
@@ -241,7 +241,7 @@ export async function getCustomerDetail(id: string): Promise<{
           .eq('organization_id', orgId)
           .eq('bc_connection_id', connection.id)
           .eq('customer_no', customer.bc_customer_number)
-          .order('posting_date', { ascending: false })
+          .order('posting_date', { ascending: false, nullsFirst: false })
       : Promise.resolve({ data: [] as BusinessCentralCustomerLedgerEntry[] }),
   ]);
 
@@ -288,7 +288,9 @@ export async function getSalesInvoicesPageData(): Promise<{
     .select('*')
     .eq('organization_id', orgId)
     .eq('bc_connection_id', connection.id)
-    .order('posting_date', { ascending: false })
+    // nullsFirst: false ensures NULLs sort last on DESC, preventing null posting_dates
+    // from consuming result slots and pushing recent invoices out of the top 500.
+    .order('posting_date', { ascending: false, nullsFirst: false })
     .limit(500);
 
   return { invoices: (data ?? []) as BusinessCentralSalesInvoice[] };
