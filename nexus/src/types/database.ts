@@ -888,3 +888,149 @@ export interface Database {
     };
   };
 }
+
+export type SyncEntityType =
+  | 'customer'
+  | 'sales_invoice'
+  | 'sales_invoice_line'
+  | 'customer_ledger_entry';
+
+export interface BusinessCentralCustomer {
+  id: string;
+  organization_id: string;
+  bc_connection_id: string | null;
+  bc_environment: string;
+  bc_company_id: string;
+  bc_customer_id: string;
+  bc_customer_number: string | null;
+  bc_etag: string | null;
+  bc_last_modified_at: string | null;
+  display_name: string;
+  type: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  phone_number: string | null;
+  email: string | null;
+  website: string | null;
+  currency_id: string | null;
+  currency_code: string | null;
+  payment_terms_id: string | null;
+  payment_method_id: string | null;
+  shipment_method_id: string | null;
+  tax_liable: boolean;
+  tax_area_id: string | null;
+  tax_registration_number: string | null;
+  blocked: string | null;
+  balance: number | null;
+  overdue_amount: number | null;
+  bc_raw_payload: Record<string, unknown>;
+  sync_status: string;
+  sync_error: string | null;
+  last_synced_at: string | null;
+  last_pulled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessCentralSalesInvoice {
+  id: string;
+  organization_id: string;
+  bc_connection_id: string | null;
+  bc_environment: string;
+  bc_company_id: string;
+  bc_invoice_id: string;
+  bc_invoice_number: string | null;
+  external_document_number: string | null;
+  bc_etag: string | null;
+  bc_last_modified_at: string | null;
+  invoice_date: string | null;
+  posting_date: string | null;
+  due_date: string | null;
+  bc_customer_id: string | null;
+  customer_number: string | null;
+  customer_name: string | null;
+  bill_to_customer_id: string | null;
+  bill_to_customer_number: string | null;
+  bill_to_name: string | null;
+  currency_code: string | null;
+  discount_amount: number | null;
+  total_amount_excluding_tax: number | null;
+  total_tax_amount: number | null;
+  total_amount_including_tax: number | null;
+  status: string | null;
+  bc_raw_payload: Record<string, unknown>;
+  sync_status: string;
+  sync_error: string | null;
+  last_synced_at: string | null;
+  last_pulled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessCentralSalesInvoiceLine {
+  id: string;
+  organization_id: string;
+  bc_connection_id: string | null;
+  bc_environment: string;
+  bc_company_id: string;
+  bc_line_id: string;
+  bc_invoice_id: string;
+  bc_etag: string | null;
+  bc_last_modified_at: string | null;
+  sequence: number | null;
+  line_type: string | null;
+  line_object_number: string | null;
+  description: string | null;
+  unit_of_measure_code: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  discount_amount: number | null;
+  discount_percent: number | null;
+  tax_percent: number | null;
+  amount_excluding_tax: number | null;
+  tax_amount: number | null;
+  amount_including_tax: number | null;
+  bc_raw_payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessCentralCustomerLedgerEntry {
+  id: string;
+  organization_id: string;
+  bc_connection_id: string | null;
+  bc_environment: string;
+  bc_company_id: string;
+  entry_no: number;
+  customer_no: string;
+  posting_date: string | null;
+  document_type: string | null;
+  document_no: string | null;
+  description: string | null;
+  due_date: string | null;
+  currency_code: string | null;
+  amount: number | null;
+  remaining_amount: number | null;
+  open: boolean;
+  closed_at_date: string | null;
+  external_document_no: string | null;
+  bc_raw_payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessCentralSyncCheckpoint {
+  id: string;
+  organization_id: string;
+  bc_connection_id: string;
+  entity_type: SyncEntityType;
+  phase: 'backfill' | 'delta';
+  cursor_value: string | null;
+  records_synced: number;
+  last_error: string | null;
+  updated_at: string;
+}
