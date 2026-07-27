@@ -13,7 +13,10 @@ const ctx = {
 
 function fakeClients() {
   const listResourcePage = vi.fn<
-    (resource: string, options: { filter?: string; orderBy: string; top: number }) => Promise<unknown[]>
+    (
+      resource: string,
+      options: { filter?: string; orderBy: string; top: number; expand?: string }
+    ) => Promise<unknown[]>
   >(async () => []);
   const listEntriesAfter = vi.fn<(entryNo: number, top: number) => Promise<unknown[]>>(async () => []);
   return {
@@ -49,6 +52,16 @@ describe('buildArSyncAdapters', () => {
     expect(call[1].filter).toContain('lastModifiedDateTime ge 2026-03-01T00:00:00Z');
     expect(call[1].orderBy).toBe('lastModifiedDateTime');
     expect(call[1].top).toBe(500);
+  });
+
+  it('requests the customerFinancialDetails expand for customers, so overdue_amount can be populated', async () => {
+    const { bcClient, ledgerClient, listResourcePage } = fakeClients();
+    const adapters = buildArSyncAdapters({ bcClient, ledgerClient });
+    const customers = adapters.find((a) => a.entityType === 'customer')!;
+
+    await customers.fetchPage(null, 500);
+
+    expect(listResourcePage.mock.calls[0][1].expand).toBe('customerFinancialDetails');
   });
 
   it('omits the cursor clause on a first run', async () => {

@@ -50,10 +50,15 @@ export function buildArSyncAdapters(input: ArSyncAdapterInput): SyncEntityAdapte
     conflictTarget: 'organization_id,bc_connection_id,bc_company_id,bc_customer_id',
     pageSize: AR_SYNC_PAGE_SIZE,
     fetchPage: (cursor, top) =>
+      // `customerFinancialDetails` (balance, overdueAmount) is only present on
+      // the response when explicitly expanded — BC API v2.0 does not include
+      // it by default. It's needed as an independent cross-check against our
+      // own aging arithmetic.
       bcClient.listResourcePage<BcCustomer>('customers', {
         filter: deltaFilter(cursor),
         orderBy: 'lastModifiedDateTime',
         top,
+        expand: 'customerFinancialDetails',
       }),
     map: (ctx, customer) =>
       mapBcCustomerToDb({

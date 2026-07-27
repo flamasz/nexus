@@ -2,17 +2,38 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { AlertTriangle, Clock } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AGING_BUCKETS, type AgingBucket } from "@/lib/businessCentral/aging";
 import type { AgingRow } from "@/lib/businessCentral/agingSummary";
 import { summarizeAging } from "@/lib/businessCentral/agingSummary";
 import { formatDate, formatMoney } from "@/lib/format";
+import type { BusinessCentralSyncCheckpoint } from "@/types/database";
 
 interface AgingDashboardProps {
   rows: AgingRow[];
   asOfDate: string | null;
+  syncStatus: BusinessCentralSyncCheckpoint[];
+}
+
+// The `business_central_sync_checkpoints` table has no explicit "backfill
+// complete" flag — the sync runner only ever knows completion transiently,
+// for the single request that just ran it, and that signal is never
+// persisted. So the only checkpoint-derived signals we can trust for the
+// entity aging is actually built from (`customer_ledger_entry`) are:
+//   - no checkpoint row at all -> this connection has never been synced.
+//   - a checkpoint row with `last_error` set -> the most recent sync attempt
+//     failed, so the ledger data behind aging is known-incomplete (an
+//     unpublished OData page is an expected failure mode here).
+// Neither signal proves an error-free, in-progress backfill (across several
+// manual sync clicks with no failures) is complete. We deliberately do not
+// invent a schema field to close that gap; instead we surface "last synced"
+// and the last error plainly and let the operator judge, rather than
+// asserting a completeness we cannot verify.
+function ledgerEntryStatus(syncStatus: BusinessCentralSyncCheckpoint[]) {
+  return syncStatus.find((row) => row.entity_type === "customer_ledger_entry") ?? null;
 }
 
 const BUCKET_LABELS: Record<AgingBucket, string> = {
@@ -32,8 +53,18 @@ function compareRows(a: AgingRow, b: AgingRow, sortKey: SortKey): number {
   return (b.remaining_amount ?? 0) - (a.remaining_amount ?? 0);
 }
 
-export function AgingDashboard({ rows, asOfDate }: AgingDashboardProps) {
+export function AgingDashboard({ rows, asOfDate, syncStatus }: AgingDashboardProps) {
   const [sortKey, setSortKey] = useState<SortKey>("days_overdue");
+
+  const ledgerCheckpoint = useMemo(() => ledgerEntryStatus(syncStatus), [syncStatus]);
+  const neverSynced = ledgerCheckpoint === null;
+  const hasSyncError = Boolean(ledgerCheckpoint?.last_error);
+  // Sound but not provable from the schema: absence of a checkpoint means the
+  // ledger backfill has never run, and a checkpoint with a recorded error
+  // means the last attempt did not complete cleanly. Either way the aging
+  // totals below may be built from a partial slice of the customer ledger.
+  const backfillIncomplete = neverSynced || hasSyncError;
+  const lastSyncedAt = ledgerCheckpoint?.updated_at ?? null;
 
   const summary = useMemo(() => summarizeAging(rows), [rows]);
   const sorted = useMemo(
@@ -66,11 +97,37 @@ export function AgingDashboard({ rows, asOfDate }: AgingDashboardProps) {
               ? `As of ${asOfDate} (Business Central environment time zone)`
               : "No aging data available yet"}
           </p>
+          <p className="mt-1 text-xs text-foreground-subtle">
+            {lastSyncedAt
+              ? `Ledger last synced ${new Date(lastSyncedAt).toLocaleString()}`
+              : "Ledger has never been synced"}
+          </p>
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 lg:p-4">
         <div className="space-y-4">
+          {backfillIncomplete && (
+            <div className="flex flex-wrap items-start gap-2 rounded-lg border border-destructive/40 bg-destructive-subtle px-3 py-2.5 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-medium">
+                  {neverSynced
+                    ? "The customer ledger has never been synced — the totals below are empty, not complete."
+                    : "The customer ledger backfill has not completed — the totals below are partial."}
+                </p>
+                <p>Run Sync again from the Customers page to continue the backfill.</p>
+                {ledgerCheckpoint?.last_error && (
+                  <p>
+                    <Badge variant="destructive">Last sync error</Badge>{" "}
+                    <span className="text-foreground-muted">
+                      {ledgerCheckpoint.last_error}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           {isMixedCurrency && (
             <div className="rounded-lg border border-warning/40 bg-warning-subtle px-3 py-2 text-xs text-foreground-muted">
               These totals span multiple currencies (

@@ -196,7 +196,7 @@ export interface BcClient {
   }): Promise<BcListResponse<BcInventoryPostingGroup>>;
   listResourcePage<T>(
     resource: string,
-    options: { filter?: string; orderBy: string; top: number },
+    options: { filter?: string; orderBy: string; top: number; expand?: string },
   ): Promise<T[]>;
 }
 
@@ -356,7 +356,7 @@ export function createBcClient(config: BcClientConfig): BcClient {
 
   async function listResourcePage<T>(
     resource: string,
-    options: { filter?: string; orderBy: string; top: number },
+    options: { filter?: string; orderBy: string; top: number; expand?: string },
   ): Promise<T[]> {
     const params: string[] = [];
     if (options.filter) {
@@ -364,6 +364,9 @@ export function createBcClient(config: BcClientConfig): BcClient {
     }
     params.push(`$orderby=${encodeURIComponent(options.orderBy)}`);
     params.push(`$top=${encodeURIComponent(String(options.top))}`);
+    if (options.expand) {
+      params.push(`$expand=${encodeURIComponent(options.expand)}`);
+    }
     const response = await request<BcListResponse<T>>(
       `${companyPath(`/${resource}`)}?${params.join("&")}`,
     );

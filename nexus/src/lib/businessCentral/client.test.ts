@@ -153,6 +153,24 @@ describe('Business Central client', () => {
     expect(String(url)).toContain('$orderby=lastModifiedDateTime');
     expect(String(url)).toContain('$top=500');
     expect(String(url)).not.toContain('$filter');
+    expect(String(url)).not.toContain('$expand');
+  });
+
+  it('includes $expand on listResourcePage when supplied', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ value: [{ id: 'cust-1' }] }));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    await client.listResourcePage('customers', {
+      orderBy: 'lastModifiedDateTime',
+      top: 500,
+      expand: 'customerFinancialDetails',
+    });
+
+    const [url] = fetchImpl.mock.calls[1];
+    expect(String(url)).toContain('$expand=customerFinancialDetails');
   });
 
   it('encodes listResourcePage filter values with %20 rather than +, and the decoded filter round-trips', async () => {
