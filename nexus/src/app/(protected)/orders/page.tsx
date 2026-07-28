@@ -1,7 +1,7 @@
 import type { Viewport } from 'next';
 import { OrdersClient } from '@/components/orders/OrdersClient';
-import { PurchaseOrderWithItems, ItemName, Category, User, InvoiceOption } from '@/types/database';
-import { getOrders } from '@/app/actions/orders';
+import { Category, ItemName, PurchaseOrderWithItems, User, InvoiceOption, PackagingItemCombo } from '@/types/database';
+import { getOrders, getPackagingItemCombos } from '@/app/actions/orders';
 import { getCategories } from '@/app/actions/categories';
 import { getItemNames } from '@/app/actions/itemNames';
 import { getCurrentUser } from '@/app/actions/users';
@@ -19,19 +19,21 @@ export const viewport: Viewport = {
 export default async function OrdersPage() {
   let user: User | null = null;
   let orders: PurchaseOrderWithItems[] = [];
+  let invoiceOptions: InvoiceOption[] = [];
   let itemNames: ItemName[] = [];
   let categories: Category[] = [];
-  let invoiceOptions: InvoiceOption[] = [];
+  let packagingItemCombos: PackagingItemCombo[] = [];
 
   try {
     user = await getCurrentUser();
 
     if (user?.organization_id) {
       const access = resolveUserAccess(user);
-      [orders, itemNames, categories, invoiceOptions] = await Promise.all([
+      [orders, itemNames, categories, packagingItemCombos, invoiceOptions] = await Promise.all([
         getOrders(),
         getItemNames(),
         getCategories(),
+        getPackagingItemCombos(),
         access.canViewInvoices ? getInvoiceOptions() : Promise.resolve([]),
       ]);
     }
@@ -45,6 +47,7 @@ export default async function OrdersPage() {
       initialOrders={orders}
       initialItemNames={itemNames}
       initialCategories={categories}
+      initialPackagingItemCombos={packagingItemCombos}
       initialInvoiceOptions={invoiceOptions}
     />
   );

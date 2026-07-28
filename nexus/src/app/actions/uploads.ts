@@ -1,11 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizationContext } from '@/lib/auth/currentUserAccess';
+import { getActiveBusinessCentralScope, requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createClient } from '@/lib/supabase/server';
 import { FileRecord, UploadSession, UploadSessionWithDetails, UploadStatus, User } from '@/types/database';
 
-async function verifySessionOwnership(sessionId: string, orgId: string): Promise<void> {
+async function verifySessionOwnership(sessionId: string, orgId: string, bcConnectionId: string): Promise<void> {
   const supabase = await createClient();
 
   const { data: session } = await supabase
@@ -23,6 +23,7 @@ async function verifySessionOwnership(sessionId: string, orgId: string): Promise
     .select('id')
     .eq('id', session.packaging_id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (!item) {
@@ -32,11 +33,15 @@ async function verifySessionOwnership(sessionId: string, orgId: string): Promise
 
 export async function getUploadSessions(packagingId: string): Promise<UploadSessionWithDetails[]> {
   const supabase = await createClient();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return [];
 
   const { data, error } = await supabase
     .from('upload_sessions')
     .select('*, files(*), uploader:users!uploaded_by(*)')
     .eq('packaging_id', packagingId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('uploaded_at', { ascending: false });
 
   if (error) {
@@ -55,7 +60,7 @@ export async function createUploadSession(
   packagingId: string,
   files: { name: string; size: number; type: string; storagePath: string }[]
 ): Promise<UploadSession> {
-  const { orgId, access, user } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access, user } = await requireActiveBusinessCentralScope();
   if (!access.canUploadArtwork) {
     throw new Error('You do not have permission to upload artwork');
   }
@@ -67,6 +72,7 @@ export async function createUploadSession(
     .select('id, status')
     .eq('id', packagingId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (!item) {
@@ -78,6 +84,7 @@ export async function createUploadSession(
     .insert({
       packaging_id: packagingId,
       organization_id: orgId,
+      bc_connection_id: bcConnectionId,
       uploaded_by: user.id,
     })
     .select()
@@ -117,7 +124,8 @@ export async function createUploadSession(
     .from('items')
     .update(updateData)
     .eq('id', packagingId)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (itemUpdateError) {
     throw itemUpdateError;
@@ -132,18 +140,20 @@ export async function updateUploadSessionStatus(
   sessionId: string,
   status: UploadStatus
 ): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageUploadStatus) {
     throw new Error('You do not have permission to update upload status');
   }
 
-  await verifySessionOwnership(sessionId, orgId);
+  await verifySessionOwnership(sessionId, orgId, bcConnectionId);
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('upload_sessions')
     .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;
@@ -157,18 +167,20 @@ export async function updateUploadSessionNotes(
   sessionId: string,
   notes: string
 ): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canEditUploadNotes) {
     throw new Error('You do not have permission to edit upload notes');
   }
 
-  await verifySessionOwnership(sessionId, orgId);
+  await verifySessionOwnership(sessionId, orgId, bcConnectionId);
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('upload_sessions')
     .update({ notes, updated_at: new Date().toISOString() })
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;
@@ -179,18 +191,20 @@ export async function archiveUploadSession(
   sessionId: string,
   archived: boolean
 ): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canArchiveUploadSessions) {
     throw new Error('You do not have permission to archive upload sessions');
   }
 
-  await verifySessionOwnership(sessionId, orgId);
+  await verifySessionOwnership(sessionId, orgId, bcConnectionId);
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('upload_sessions')
     .update({ archived, updated_at: new Date().toISOString() })
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;
@@ -201,12 +215,12 @@ export async function archiveUploadSession(
 }
 
 export async function deleteUploadSession(sessionId: string): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canDeleteUploadSessions) {
     throw new Error('You do not have permission to delete upload sessions');
   }
 
-  await verifySessionOwnership(sessionId, orgId);
+  await verifySessionOwnership(sessionId, orgId, bcConnectionId);
   const supabase = await createClient();
 
   const { data: files } = await supabase
@@ -227,7 +241,9 @@ export async function deleteUploadSession(sessionId: string): Promise<void> {
   const { error } = await supabase
     .from('upload_sessions')
     .delete()
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;

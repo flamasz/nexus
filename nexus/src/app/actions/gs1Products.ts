@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { requirePermission } from '@/lib/auth/currentUserAccess';
+import { requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { parseGs1Excel } from '@/lib/gs1/parser';
 import { matchGs1RowToBcItems } from '@/lib/gs1/matcher';
 import { createServiceClient } from '@/lib/supabase/server';
@@ -14,8 +14,6 @@ import type {
   Gs1Product,
   Gs1ReviewRow,
 } from '@/types/gs1';
-
-type Client = ReturnType<typeof createServiceClient>;
 
 // ── Row mappers ──────────────────────────────────────────────────────────────
 
@@ -104,10 +102,10 @@ function mapCandidateRow(r: Record<string, unknown>): Gs1ImportMatchCandidate {
 export async function importGs1Excel(
   formData: FormData,
 ): Promise<Gs1ImportResult> {
-  const { user, orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Only catalog managers can import GS1 data.',
-  );
+  const { user, orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Only catalog managers can import GS1 data.');
+  }
 
   const file = formData.get('file') as File | null;
   if (!file) throw new Error('No file provided.');
@@ -130,6 +128,7 @@ export async function importGs1Excel(
     .from('gs1_import_batches')
     .insert({
       organization_id: orgId,
+      bc_connection_id: bcConnectionId,
       uploaded_by: user.id,
       file_name: file.name,
       file_size_bytes: file.size,
@@ -148,7 +147,7 @@ export async function importGs1Excel(
 
   let createdCount = 0;
   let updatedCount = 0;
-  let duplicateCount = 0;
+  const duplicateCount = 0;
   let errorCount = 0;
 
   // Upsert GS1 products by normalized_gtin
@@ -160,6 +159,7 @@ export async function importGs1Excel(
         .from('gs1_products')
         .select('id')
         .eq('organization_id', orgId)
+        .eq('bc_connection_id', bcConnectionId)
         .eq('normalized_gtin', row.normalizedGtin)
         .maybeSingle();
 
@@ -207,6 +207,7 @@ export async function importGs1Excel(
           .from('gs1_products')
           .insert({
             organization_id: orgId,
+            bc_connection_id: bcConnectionId,
             normalized_gtin: row.normalizedGtin,
             gtin: row.gtin,
             gtin_8: row.gtin8,
@@ -255,6 +256,7 @@ export async function importGs1Excel(
     .from('business_central_items')
     .select('id, bc_item_number, display_name, display_name_2, gtin')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .neq('sync_status', 'deleted_in_bc');
 
   const bcSlim = (bcItems ?? []).map((b: Record<string, unknown>) => ({
@@ -281,6 +283,8 @@ export async function importGs1Excel(
       .from('gs1_item_links')
       .select('id, status')
       .eq('gs1_product_id', gs1ProductId)
+      .eq('organization_id', orgId)
+      .eq('bc_connection_id', bcConnectionId)
       .in('status', ['auto_linked', 'approved'])
       .maybeSingle();
 
@@ -291,6 +295,7 @@ export async function importGs1Excel(
       await db.from('gs1_import_match_candidates').upsert(
         {
           organization_id: orgId,
+          bc_connection_id: bcConnectionId,
           import_batch_id: batchId,
           gs1_product_id: gs1ProductId,
           business_central_item_id: candidate.bcItemId,
@@ -307,6 +312,7 @@ export async function importGs1Excel(
         await db.from('gs1_item_links').upsert(
           {
             organization_id: orgId,
+            bc_connection_id: bcConnectionId,
             gs1_product_id: gs1ProductId,
             business_central_item_id: candidate.bcItemId,
             status: 'auto_linked',
@@ -360,10 +366,10 @@ export async function getGs1ImportReview(batchId: string): Promise<{
   batch: Gs1ImportBatch;
   rows: Gs1ReviewRow[];
 }> {
-  const { orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Only catalog managers can view GS1 import reviews.',
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Only catalog managers can view GS1 import reviews.');
+  }
 
   const db = createServiceClient();
 
@@ -372,6 +378,7 @@ export async function getGs1ImportReview(batchId: string): Promise<{
     .select('*')
     .eq('id', batchId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (batchErr || !batchRow) throw new Error('Import batch not found.');
@@ -381,6 +388,7 @@ export async function getGs1ImportReview(batchId: string): Promise<{
     .select('*, gs1_products(*), business_central_items(id, bc_item_number, display_name, gtin)')
     .eq('import_batch_id', batchId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('match_score', { ascending: false });
 
   const rows: Gs1ReviewRow[] = (candidateRows ?? []).map((c: Record<string, unknown>) => {
@@ -402,16 +410,17 @@ export async function getGs1ImportReview(batchId: string): Promise<{
 // ── Recent import batches ────────────────────────────────────────────────────
 
 export async function getGs1ImportBatches(): Promise<Gs1ImportBatch[]> {
-  const { orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Only catalog managers can view GS1 imports.',
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Only catalog managers can view GS1 imports.');
+  }
 
   const db = createServiceClient();
   const { data } = await db
     .from('gs1_import_batches')
     .select('*')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('created_at', { ascending: false })
     .limit(20);
 
@@ -421,10 +430,10 @@ export async function getGs1ImportBatches(): Promise<Gs1ImportBatch[]> {
 // ── Decision actions ─────────────────────────────────────────────────────────
 
 export async function approveGs1Match(candidateId: string): Promise<void> {
-  const { user, orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Only catalog managers can approve GS1 matches.',
-  );
+  const { user, orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Only catalog managers can approve GS1 matches.');
+  }
 
   const db = createServiceClient();
   const now = new Date().toISOString();
@@ -434,6 +443,7 @@ export async function approveGs1Match(candidateId: string): Promise<void> {
     .select('*')
     .eq('id', candidateId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (!candidate) throw new Error('Candidate not found.');
@@ -447,6 +457,7 @@ export async function approveGs1Match(candidateId: string): Promise<void> {
   await db.from('gs1_item_links').upsert(
     {
       organization_id: orgId,
+      bc_connection_id: bcConnectionId,
       gs1_product_id: candidate.gs1_product_id,
       business_central_item_id: candidate.business_central_item_id,
       status: 'approved',
@@ -464,6 +475,8 @@ export async function approveGs1Match(candidateId: string): Promise<void> {
     .from('gs1_import_match_candidates')
     .update({ status: 'superseded', updated_at: now })
     .eq('import_batch_id', candidate.import_batch_id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .eq('gs1_product_id', candidate.gs1_product_id)
     .neq('id', candidateId)
     .in('status', ['suggested', 'auto_linked']);
@@ -472,10 +485,10 @@ export async function approveGs1Match(candidateId: string): Promise<void> {
 }
 
 export async function denyGs1Match(candidateId: string): Promise<void> {
-  const { user, orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Only catalog managers can deny GS1 matches.',
-  );
+  const { user, orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Only catalog managers can deny GS1 matches.');
+  }
 
   const db = createServiceClient();
   const now = new Date().toISOString();
@@ -485,6 +498,7 @@ export async function denyGs1Match(candidateId: string): Promise<void> {
     .select('*')
     .eq('id', candidateId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (!candidate) throw new Error('Candidate not found.');
@@ -500,16 +514,17 @@ export async function denyGs1Match(candidateId: string): Promise<void> {
     .update({ status: 'denied', decided_by: user.id, decided_at: now, updated_at: now })
     .eq('gs1_product_id', candidate.gs1_product_id)
     .eq('business_central_item_id', candidate.business_central_item_id)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   revalidatePath('/items');
 }
 
 export async function unlinkGs1Match(gs1ProductId: string, bcItemId: string): Promise<void> {
-  const { user, orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Only catalog managers can unlink GS1 matches.',
-  );
+  const { user, orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Only catalog managers can unlink GS1 matches.');
+  }
 
   const db = createServiceClient();
   const now = new Date().toISOString();
@@ -519,7 +534,8 @@ export async function unlinkGs1Match(gs1ProductId: string, bcItemId: string): Pr
     .update({ status: 'unlinked', decided_by: user.id, decided_at: now, updated_at: now })
     .eq('gs1_product_id', gs1ProductId)
     .eq('business_central_item_id', bcItemId)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   revalidatePath('/items');
 }
@@ -530,10 +546,10 @@ export async function getLinkedGs1Product(bcItemId: string): Promise<{
   product: Gs1Product;
   link: { status: string; matchMethod: string; matchReason: string | null; matchScore: number | null };
 } | null> {
-  const { orgId } = await requirePermission(
-    (a) => a.canManageCatalog,
-    'Unauthorized.',
-  );
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  if (!access.canManageCatalog) {
+    throw new Error('Unauthorized.');
+  }
 
   const db = createServiceClient();
 
@@ -542,6 +558,7 @@ export async function getLinkedGs1Product(bcItemId: string): Promise<{
     .select('*, gs1_products(*)')
     .eq('business_central_item_id', bcItemId)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .in('status', ['auto_linked', 'approved'])
     .order('updated_at', { ascending: false })
     .limit(1)

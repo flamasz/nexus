@@ -1,18 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizationContext } from '@/lib/auth/currentUserAccess';
+import { getActiveBusinessCentralScope, requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createClient } from '@/lib/supabase/server';
 import { ProductLine } from '@/types/database';
 
 export async function getProductLines(): Promise<ProductLine[]> {
   const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return [];
 
   const { data, error } = await supabase
     .from('product_lines')
     .select('*')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('name', { ascending: true });
 
   if (error) {
@@ -24,12 +26,14 @@ export async function getProductLines(): Promise<ProductLine[]> {
 
 export async function searchProductLines(search: string): Promise<ProductLine[]> {
   const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return [];
 
   const { data, error } = await supabase
     .from('product_lines')
     .select('*')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .ilike('name', `%${search}%`)
     .order('name', { ascending: true })
     .limit(10);
@@ -42,7 +46,7 @@ export async function searchProductLines(search: string): Promise<ProductLine[]>
 }
 
 export async function createProductLine(name: string): Promise<ProductLine> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageCatalog) {
     throw new Error('You do not have permission to manage product lines');
   }
@@ -50,7 +54,7 @@ export async function createProductLine(name: string): Promise<ProductLine> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('product_lines')
-    .insert({ name: name.trim(), organization_id: orgId })
+    .insert({ name: name.trim(), organization_id: orgId, bc_connection_id: bcConnectionId })
     .select()
     .single();
 
@@ -63,7 +67,7 @@ export async function createProductLine(name: string): Promise<ProductLine> {
 }
 
 export async function deleteProductLine(id: string): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageCatalog) {
     throw new Error('You do not have permission to manage product lines');
   }
@@ -74,6 +78,7 @@ export async function deleteProductLine(id: string): Promise<void> {
     .select('id')
     .eq('product_line_id', id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .limit(1);
 
   if (items && items.length > 0) {
@@ -84,7 +89,8 @@ export async function deleteProductLine(id: string): Promise<void> {
     .from('product_lines')
     .delete()
     .eq('id', id)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;

@@ -402,36 +402,6 @@ export function createBcClient(config: BcClientConfig): BcClient {
   };
 }
 
-export function createBcClientFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): BcClient {
-  const config = readBcClientConfigFromEnv(env);
-  return createBcClient(config);
-}
-
-export function readBcClientConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): BcClientConfig {
-  const config = {
-    tenantId: env.BUSINESS_CENTRAL_TENANT_ID,
-    clientId: env.BUSINESS_CENTRAL_CLIENT_ID,
-    clientSecret: env.BUSINESS_CENTRAL_CLIENT_SECRET,
-    environment: env.BUSINESS_CENTRAL_ENVIRONMENT,
-    companyId: env.BUSINESS_CENTRAL_DEFAULT_COMPANY_ID,
-    apiBaseUrl: env.BUSINESS_CENTRAL_API_BASE_URL,
-  };
-
-  const missing = Object.entries(config)
-    .filter(([key, value]) => key !== "apiBaseUrl" && !value)
-    .map(([key]) => key);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing Business Central env vars: ${missing.join(", ")}`);
-  }
-
-  return config as BcClientConfig;
-}
-
 export interface CreateBcClientForOrgOptions {
   /**
    * Service-role Supabase client used for the credential/connection reads.
@@ -456,9 +426,8 @@ async function getServiceClient(): Promise<SupabaseClient> {
  * - The shared tenant/client IDs come from `business_central_credentials`; the
  *   client secret is decrypted from Supabase Vault via the
  *   `get_bc_client_secret` SECURITY DEFINER wrapper.
- * - Phase 1 fallback: when no credentials row exists yet (before the env-var
- *   seed runs), this falls back to `createBcClientFromEnv()` so existing
- *   behavior is preserved. The env-var path is removed at Phase 2 start.
+ * - When no credentials row exists for the org, this throws a clear error —
+ *   credentials must be configured in Settings (or via the one-time seed).
  */
 export async function createBcClientForOrg(
   orgId: string,
@@ -479,9 +448,10 @@ export async function createBcClientForOrg(
     );
   }
 
-  // Phase 1 fallback — no credentials seeded yet, keep the env-var path alive.
   if (!credentials) {
-    return createBcClientFromEnv();
+    throw new Error(
+      "No Business Central credentials are configured for this organization.",
+    );
   }
 
   const connectionQuery = supabase

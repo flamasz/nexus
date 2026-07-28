@@ -11,20 +11,52 @@ import type { BusinessCentralConnection } from "@/types/database";
  * `createBcClientForOrg`. Call sites never change after Phase 1 — only this
  * function's body does.
  *
- * - Phase 1 (now): always returns the organization's default (`is_default`)
- *   connection, or `null` when none exists yet (pre-seed).
- * - Phase 3 (later): this body is upgraded to read
- *   `users.active_bc_connection_id`, falling back to the org default when that
- *   is null or points at a connection in a different org.
+ * - Returns the user's `active_bc_connection_id` connection when it is set and
+ *   belongs to `orgId`.
+ * - Otherwise falls back to the organization's default (`is_default`)
+ *   connection, or `null` when none exists.
  */
 export async function resolveActiveBcConnection(
   orgId: string,
   userId: string,
 ): Promise<BusinessCentralConnection | null> {
-  // Phase 1 ignores the per-user selection; Phase 3 will use `userId`.
-  void userId;
-
   const supabase = createServiceClient();
+
+  // Per-user selection takes precedence when it points at a connection that
+  // still belongs to this org (a cross-org or deleted pointer is ignored).
+  const { data: userRow, error: userError } = await supabase
+    .from("users")
+    .select("active_bc_connection_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (userError) {
+    throw new Error(
+      `Failed to resolve the active Business Central environment: ${userError.message}`,
+    );
+  }
+
+  const activeConnectionId = userRow?.active_bc_connection_id ?? null;
+  if (activeConnectionId) {
+    const { data: active, error: activeError } = await supabase
+      .from("business_central_connections")
+      .select("*")
+      .eq("id", activeConnectionId)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+
+    if (activeError) {
+      throw new Error(
+        `Failed to resolve the active Business Central environment: ${activeError.message}`,
+      );
+    }
+
+    if (active) {
+      return active as BusinessCentralConnection;
+    }
+  }
+
+  // Fall back to the org default.
   const { data, error } = await supabase
     .from("business_central_connections")
     .select("*")

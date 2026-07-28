@@ -93,6 +93,8 @@ RESEND_API_KEY=                  # For email notifications
 NEXT_PUBLIC_APP_URL=             # Used in email links (e.g. http://localhost:3000)
 ```
 
+**Business Central:** `BUSINESS_CENTRAL_*` vars (`TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `ENVIRONMENT`, `DEFAULT_COMPANY_ID`, optional `API_BASE_URL`) are **seed-only** — they are no longer required at runtime. They are read once by `scripts/seed-bc-credentials.ts` to populate `business_central_credentials` and Supabase Vault. At runtime, BC clients are built from the database via `createBcClientForOrg`. Credentials and environments are managed in Settings.
+
 ## Roles & Permissions
 
 - `user`: Can upload files, add notes, view all items in their org

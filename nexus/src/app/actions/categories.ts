@@ -1,18 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizationContext } from '@/lib/auth/currentUserAccess';
+import { getActiveBusinessCentralScope, requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createClient } from '@/lib/supabase/server';
 import { Category, DimensionUnit } from '@/types/database';
 
 export async function getCategories(): Promise<Category[]> {
   const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return [];
 
   const { data, error } = await supabase
     .from('categories')
     .select('*')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('name', { ascending: true });
 
   if (error) {
@@ -24,13 +26,15 @@ export async function getCategories(): Promise<Category[]> {
 
 export async function getCategory(id: string): Promise<Category | null> {
   const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return null;
 
   const { data, error } = await supabase
     .from('categories')
     .select('*')
     .eq('id', id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (error) {
@@ -51,7 +55,7 @@ export async function createCategory(data: {
   unit: DimensionUnit;
   color?: string;
 }): Promise<Category> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageCatalog) {
     throw new Error('You do not have permission to manage categories');
   }
@@ -67,6 +71,7 @@ export async function createCategory(data: {
       unit: data.unit,
       color: data.color || null,
       organization_id: orgId,
+      bc_connection_id: bcConnectionId,
     })
     .select()
     .single();
@@ -90,7 +95,7 @@ export async function updateCategory(
     color?: string;
   }
 ): Promise<Category> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageCatalog) {
     throw new Error('You do not have permission to manage categories');
   }
@@ -101,6 +106,7 @@ export async function updateCategory(
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .select()
     .single();
 
@@ -113,7 +119,7 @@ export async function updateCategory(
 }
 
 export async function deleteCategory(id: string): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageCatalog) {
     throw new Error('You do not have permission to manage categories');
   }
@@ -124,7 +130,8 @@ export async function deleteCategory(id: string): Promise<void> {
     .from('items')
     .update({ category_id: null })
     .eq('category_id', id)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (updateError) {
     throw updateError;
@@ -134,7 +141,8 @@ export async function deleteCategory(id: string): Promise<void> {
     .from('categories')
     .delete()
     .eq('id', id)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (error) {
     throw error;

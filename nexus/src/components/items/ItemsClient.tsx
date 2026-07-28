@@ -56,9 +56,11 @@ import {
   SyncProgressState,
   SyncStatus,
 } from "@/types/businessCentralItems";
-import { User } from "@/types/database";
+import { Category, ItemName, PackagingItemCombo, ProductLine, User } from "@/types/database";
 import { Gs1ImportModal } from "@/components/gs1/Gs1ImportModal";
 import { Gs1FieldsPanel } from "@/components/gs1/Gs1FieldsPanel";
+import { BarcodeUploadsPanel } from "@/components/items/BarcodeUploadsPanel";
+import { PurchasesPanel } from "@/components/items/PurchasesPanel";
 import {
   CreateBusinessCentralItemDraft,
   EditableDetailField,
@@ -67,17 +69,22 @@ import {
 } from "./useBusinessCentralItemsMock";
 
 interface ItemsClientProps {
+  activeConnectionId?: string | null;
   items: BusinessCentralItemWithDetails[];
   events: BusinessCentralSyncEvent[];
   connection: ConnectionState;
   syncProgress: SyncProgressState;
   references: BusinessCentralReferenceData;
+  itemNames: ItemName[];
+  categories: Category[];
+  packagingItemCombos: PackagingItemCombo[];
+  productLines?: ProductLine[];
   initialUser: User | null;
   isLoading?: boolean;
 }
 
 type BadgeVariant = React.ComponentProps<typeof Badge>["variant"];
-type TabKey = "bc" | "nexus" | "retailer" | "audit" | "gs1";
+type TabKey = "bc" | "nexus" | "retailer" | "audit" | "gs1" | "purchases";
 type ActionKey = "sync" | "fullSync" | "save" | "push" | "create" | "delete" | "verify";
 type ItemSortKey = "number" | "lastModified";
 
@@ -146,11 +153,16 @@ function isInvalidNumber(value: number | null, integer = false): boolean {
 }
 
 export function ItemsClient({
+  activeConnectionId,
   items,
   events,
   connection,
   syncProgress,
   references,
+  itemNames,
+  categories,
+  packagingItemCombos,
+  productLines = [],
   initialUser,
   isLoading = false,
 }: ItemsClientProps) {
@@ -170,7 +182,7 @@ export function ItemsClient({
 
   useEffect(() => {
     dispatch({ type: "resetFromServer", items, events });
-  }, [dispatch, items, events]);
+  }, [dispatch, items, events, activeConnectionId]);
 
   const access = resolveUserAccess(initialUser);
   const canEdit = canEditBcFields(access);
@@ -500,6 +512,11 @@ export function ItemsClient({
                   entry={selected}
                   events={selectedEvents}
                   references={references}
+                  itemNames={itemNames}
+                  categories={categories}
+                  packagingItemCombos={packagingItemCombos}
+                  productLines={productLines}
+                  access={access}
                   tab={tab}
                   onTabChange={setTab}
                   canEdit={canEdit}
@@ -902,6 +919,11 @@ function DetailPanel({
   entry,
   events,
   references,
+  itemNames,
+  categories,
+  packagingItemCombos,
+  productLines,
+  access,
   tab,
   onTabChange,
   canEdit,
@@ -919,6 +941,11 @@ function DetailPanel({
   entry: BusinessCentralItemWithDetails;
   events: BusinessCentralSyncEvent[];
   references: BusinessCentralReferenceData;
+  itemNames: ItemName[];
+  categories: Category[];
+  packagingItemCombos: PackagingItemCombo[];
+  productLines: ProductLine[];
+  access: ResolvedUserAccess;
   tab: TabKey;
   onTabChange: (next: TabKey) => void;
   canEdit: boolean;
@@ -945,7 +972,8 @@ function DetailPanel({
     { key: "nexus", label: "Nexus fields" },
     { key: "retailer", label: "Retailer / pallet" },
     { key: "audit", label: "Sync & audit" },
-    { key: "gs1", label: "GS1" },
+    { key: "gs1", label: "GTIN" },
+    { key: "purchases", label: "Purchases" },
   ];
 
   const hasInvalidValues = getValidationErrors(entry).length > 0;
@@ -1085,7 +1113,20 @@ function DetailPanel({
           />
         )}
         {tab === "gs1" && (
-          <Gs1FieldsPanel bcItemId={item.id} canEdit={canEdit} />
+          <div className="space-y-3">
+            <Gs1FieldsPanel bcItemId={item.id} canEdit={canEdit} />
+            <BarcodeUploadsPanel bcItemId={item.id} canEdit={canEdit} />
+          </div>
+        )}
+        {tab === "purchases" && (
+          <PurchasesPanel
+            businessCentralItemRowId={item.id}
+            itemNames={itemNames}
+            categories={categories}
+            packagingItemCombos={packagingItemCombos}
+            productLines={productLines}
+            access={access}
+          />
         )}
       </div>
     </div>
@@ -1168,7 +1209,8 @@ function BcFieldsPanel({
       <NumberField
         label="Unit cost"
         value={item.unitCost}
-        disabled={!canEdit}
+        disabled
+        helper="Locked after item creation; Business Central does not allow Unit Cost changes once ledger entries exist."
         onChange={(value) => onEdit("unitCost", value)}
       />
       <ReferenceSelectField
@@ -1593,12 +1635,14 @@ function NumberField({
   onChange,
   disabled,
   integer = false,
+  helper,
 }: {
   label: string;
   value: number | null;
   onChange: (value: number | null) => void;
   disabled?: boolean;
   integer?: boolean;
+  helper?: string;
 }) {
   const reactId = useId();
   const id = `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${reactId}`;
@@ -1622,6 +1666,7 @@ function NumberField({
         onChange={(event) => onChange(coerceNullableNumber(event.target.value))}
         className={FIELD_CONTROL_CLASS}
       />
+      {helper && <p className="text-xs text-foreground-muted">{helper}</p>}
       {invalid && (
         <p className="text-xs text-destructive">
           Enter a non-negative {integer ? "whole number" : "number"}.

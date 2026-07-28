@@ -6,7 +6,6 @@ import {
   apiRoot,
   createBcClient,
   createBcClientForOrg,
-  readBcClientConfigFromEnv,
   resetBcClientTokenCacheForTests,
 } from './client';
 
@@ -43,19 +42,6 @@ describe('Business Central client', () => {
     expect(apiRoot({ environment: 'Production', apiBaseUrl: 'https://example.test/' })).toBe(
       'https://example.test/v2.0/Production/api/v2.0'
     );
-  });
-
-  it('reads required config from env and reports missing values', () => {
-    expect(() => readBcClientConfigFromEnv({} as NodeJS.ProcessEnv)).toThrow(/Missing Business Central env vars/);
-    expect(
-      readBcClientConfigFromEnv({
-        BUSINESS_CENTRAL_TENANT_ID: 'tenant',
-        BUSINESS_CENTRAL_CLIENT_ID: 'client',
-        BUSINESS_CENTRAL_CLIENT_SECRET: 'secret',
-        BUSINESS_CENTRAL_ENVIRONMENT: 'sandbox',
-        BUSINESS_CENTRAL_DEFAULT_COMPANY_ID: 'company',
-      } as NodeJS.ProcessEnv)
-    ).toMatchObject({ tenantId: 'tenant', clientId: 'client', environment: 'sandbox', companyId: 'company' });
   });
 
   it('authenticates with client credentials and calls company-scoped item endpoints', async () => {
@@ -176,9 +162,14 @@ interface SupaMockOptions {
 }
 
 function makeQueryChain(result: { data: unknown; error: { message: string } | null }) {
-  const chain = {
-    select: (): typeof chain => chain,
-    eq: (): typeof chain => chain,
+  type QueryChain = {
+    select: () => QueryChain;
+    eq: () => QueryChain;
+    maybeSingle: () => Promise<typeof result>;
+  };
+  const chain: QueryChain = {
+    select: () => chain,
+    eq: () => chain,
     maybeSingle: async () => result,
   };
   return chain;

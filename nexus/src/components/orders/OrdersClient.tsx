@@ -6,22 +6,25 @@ import { usePathname } from 'next/navigation';
 import { OrderBlock } from '@/components/orders';
 import { resolveUserAccess } from '@/lib/auth/permissions';
 import {
+  Category,
   PurchaseOrderWithItems,
   OrderItemWithDetails,
-  ItemName,
-  Category,
   User,
   InvoiceOption,
+  ItemName,
+  PackagingItemCombo,
 } from '@/types/database';
 import { createClient } from '@/lib/supabase/client';
-import { createOrder, createOrderItem } from '@/app/actions/orders';
 import { getCategories } from '@/app/actions/categories';
+import { getItemNames } from '@/app/actions/itemNames';
+import { createOrder, createOrderItem, getPackagingItemCombos } from '@/app/actions/orders';
 
 interface OrdersClientProps {
   initialUser: User | null;
   initialOrders: PurchaseOrderWithItems[];
   initialItemNames: ItemName[];
   initialCategories: Category[];
+  initialPackagingItemCombos: PackagingItemCombo[];
   initialInvoiceOptions: InvoiceOption[];
 }
 
@@ -30,12 +33,14 @@ export function OrdersClient({
   initialOrders,
   initialItemNames,
   initialCategories,
+  initialPackagingItemCombos,
   initialInvoiceOptions,
 }: OrdersClientProps) {
   const [user] = useState<User | null>(initialUser);
   const [orders, setOrders] = useState<PurchaseOrderWithItems[]>(initialOrders);
-  const [itemNames] = useState<ItemName[]>(initialItemNames);
+  const [itemNames, setItemNames] = useState<ItemName[]>(initialItemNames);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [packagingItemCombos, setPackagingItemCombos] = useState<PackagingItemCombo[]>(initialPackagingItemCombos);
   const [invoiceOptions, setInvoiceOptions] = useState<InvoiceOption[]>(initialInvoiceOptions);
   const [artworkStatusMap, setArtworkStatusMap] = useState<Record<string, string>>({});
   const [itemStatusMap, setItemStatusMap] = useState<Record<string, string>>({});
@@ -61,7 +66,13 @@ export function OrdersClient({
   const refreshArtworkStatus = useCallback(async (allOrderItems: OrderItemWithDetails[], orgId: string) => {
     const requestId = ++artworkStatusRequestRef.current;
     const supabase = createClient();
-    const combos = allOrderItems.filter((oi) => oi.item_name_id && oi.category_id);
+    const combos = allOrderItems
+      .map((oi) => ({
+        ...oi,
+        effectiveItemNameId: oi.item_name_id,
+        effectiveCategoryId: oi.category_id,
+      }))
+      .filter((oi) => oi.effectiveItemNameId && oi.effectiveCategoryId);
     if (combos.length === 0 || !orgId) {
       if (isMountedRef.current && requestId === artworkStatusRequestRef.current) {
         setItemsIdLookup({});
@@ -89,12 +100,12 @@ export function OrdersClient({
     for (const combo of combos) {
       const match = (matchedItems as { id: string; item_name_id: string; category_id: string; version: string | null; status: string; archived: boolean; updated_at: string }[]).find(
         (i) =>
-          i.item_name_id === combo.item_name_id &&
-          i.category_id === combo.category_id &&
+          i.item_name_id === combo.effectiveItemNameId &&
+          i.category_id === combo.effectiveCategoryId &&
           (i.version ?? null) === (combo.version ?? null)
       );
       if (match) {
-        const key = `${combo.item_name_id}|${combo.category_id}|${combo.version ?? ''}`;
+        const key = `${combo.effectiveItemNameId}|${combo.effectiveCategoryId}|${combo.version ?? ''}`;
         lookup[key] = match.id;
         statusLookup[match.id] = match.status;
       }
@@ -143,6 +154,18 @@ export function OrdersClient({
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
+
+  useEffect(() => {
+    setItemNames(initialItemNames);
+  }, [initialItemNames]);
+
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
+
+  useEffect(() => {
+    setPackagingItemCombos(initialPackagingItemCombos);
+  }, [initialPackagingItemCombos]);
 
   useEffect(() => {
     refreshCurrentArtworkStatus();
@@ -307,6 +330,10 @@ export function OrdersClient({
                   order={order}
                   itemNames={itemNames}
                   categories={categories}
+                  packagingItemCombos={packagingItemCombos}
+                  onItemNamesChange={setItemNames}
+                  onCategoriesListChange={setCategories}
+                  onPackagingItemCombosChange={setPackagingItemCombos}
                   access={access}
                   invoiceOptions={invoiceOptions}
                   onInvoiceOptionsChange={setInvoiceOptions}
@@ -316,9 +343,15 @@ export function OrdersClient({
                   onDelete={handleDeleteOrder}
                   onArchive={handleArchiveOrder}
                   onOrderItemsChange={handleOrderItemsChange}
-                  onCategoriesChange={async () => {
-                    const updated = await getCategories();
-                    setCategories(updated);
+                  onCatalogOptionsChange={async () => {
+                    const [updatedItemNames, updatedCategories, updatedPackagingItemCombos] = await Promise.all([
+                      getItemNames(),
+                      getCategories(),
+                      getPackagingItemCombos(),
+                    ]);
+                    setItemNames(updatedItemNames);
+                    setCategories(updatedCategories);
+                    setPackagingItemCombos(updatedPackagingItemCombos);
                   }}
                 />
               ))}

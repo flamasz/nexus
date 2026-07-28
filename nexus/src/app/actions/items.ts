@@ -1,18 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizationContext } from '@/lib/auth/currentUserAccess';
+import { getActiveBusinessCentralScope, requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createClient } from '@/lib/supabase/server';
 import { ItemStatus, ItemWithCategory } from '@/types/database';
 
 export async function getItems(): Promise<ItemWithCategory[]> {
   const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return [];
 
   const { data, error } = await supabase
     .from('items')
     .select('*, item_name:item_names(*), category:categories(*), product_line:product_lines(*)')
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .order('updated_at', { ascending: false });
 
   if (error) {
@@ -24,13 +26,15 @@ export async function getItems(): Promise<ItemWithCategory[]> {
 
 export async function getItem(id: string): Promise<ItemWithCategory | null> {
   const supabase = await createClient();
-  const { orgId } = await requireOrganizationContext();
+  const { orgId, bcConnectionId } = await getActiveBusinessCentralScope();
+  if (!bcConnectionId) return null;
 
   const { data, error } = await supabase
     .from('items')
     .select('*, item_name:item_names(*), category:categories(*), product_line:product_lines(*)')
     .eq('id', id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (error) {
@@ -49,7 +53,7 @@ export async function createItem(data: {
   product_line_id?: string | null;
   version?: string | null;
 }): Promise<ItemWithCategory> {
-  const { orgId, access, user } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access, user } = await requireActiveBusinessCentralScope();
   const canCreateFromDesignerFlow =
     access.canEditDesignerFields && Boolean(data.item_name_id && data.category_id);
 
@@ -67,6 +71,7 @@ export async function createItem(data: {
       version: data.version || null,
       created_by: user.id,
       organization_id: orgId,
+      bc_connection_id: bcConnectionId,
     })
     .select('*, item_name:item_names(*), category:categories(*), product_line:product_lines(*)')
     .single();
@@ -92,7 +97,7 @@ export async function updateItem(
     archived?: boolean;
   }
 ): Promise<ItemWithCategory> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   const mutatingStatusOnly =
     Object.keys(data).length === 1 && Object.prototype.hasOwnProperty.call(data, 'status');
 
@@ -110,6 +115,7 @@ export async function updateItem(
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .select('*, item_name:item_names(*), category:categories(*), product_line:product_lines(*)')
     .single();
 
@@ -124,7 +130,7 @@ export async function updateItem(
 }
 
 export async function deleteItem(id: string): Promise<void> {
-  const { orgId, access } = await requireOrganizationContext();
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canDeletePackagingItems) {
     throw new Error('You do not have permission to delete packaging items');
   }
@@ -136,6 +142,7 @@ export async function deleteItem(id: string): Promise<void> {
     .select('id')
     .eq('id', id)
     .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
     .single();
 
   if (!itemCheck) {
@@ -145,7 +152,9 @@ export async function deleteItem(id: string): Promise<void> {
   const { data: sessions } = await supabase
     .from('upload_sessions')
     .select('id')
-    .eq('packaging_id', id);
+    .eq('packaging_id', id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
 
   if (sessions) {
     for (const session of sessions) {
@@ -166,7 +175,12 @@ export async function deleteItem(id: string): Promise<void> {
     }
   }
 
-  const { error } = await supabase.from('items').delete().eq('id', id);
+  const { error } = await supabase
+    .from('items')
+    .delete()
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
   if (error) {
     throw error;
   }

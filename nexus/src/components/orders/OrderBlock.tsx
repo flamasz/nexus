@@ -30,6 +30,7 @@ import {
   ItemStatus,
   OrderItemInvoicePatch,
   OrderItemWithDetails,
+  PackagingItemCombo,
   PurchaseOrderWithItems,
 } from '@/types/database';
 import { ArtworkModal } from './ArtworkModal';
@@ -50,6 +51,7 @@ interface OrderBlockProps {
   order: PurchaseOrderWithItems;
   itemNames: ItemName[];
   categories: Category[];
+  packagingItemCombos: PackagingItemCombo[];
   invoiceOptions: InvoiceOption[];
   onInvoiceOptionsChange: (options: InvoiceOption[]) => void;
   access: UserAccess;
@@ -59,7 +61,10 @@ interface OrderBlockProps {
   onDelete: (orderId: string) => void;
   onArchive: (orderId: string) => void;
   onOrderItemsChange: (orderId: string, items: OrderItemWithDetails[]) => void;
-  onCategoriesChange: () => void;
+  onItemNamesChange: (itemNames: ItemName[]) => void;
+  onCategoriesListChange: (categories: Category[]) => void;
+  onPackagingItemCombosChange: (combos: PackagingItemCombo[]) => void;
+  onCatalogOptionsChange: () => Promise<void>;
 }
 
 function formatDate(dateStr: string): string {
@@ -160,6 +165,7 @@ export function OrderBlock({
   order,
   itemNames,
   categories,
+  packagingItemCombos,
   invoiceOptions,
   onInvoiceOptionsChange,
   access,
@@ -169,7 +175,10 @@ export function OrderBlock({
   onDelete,
   onArchive,
   onOrderItemsChange,
-  onCategoriesChange,
+  onItemNamesChange,
+  onCategoriesListChange,
+  onPackagingItemCombosChange,
+  onCatalogOptionsChange,
 }: OrderBlockProps) {
   const [orderItems, setOrderItems] = useState<OrderItemWithDetails[]>(order.order_items);
   const [addingItem, setAddingItem] = useState(false);
@@ -179,6 +188,7 @@ export function OrderBlock({
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const categoryCreatedCallbackRef = useRef<((category: Category) => void) | null>(null);
   const [displayDate, setDisplayDate] = useState(order.order_date);
   const [tableZoom, setTableZoom] = useState<TableZoom>(1);
   const approvalMeasureRef = useRef<HTMLDivElement>(null);
@@ -212,8 +222,10 @@ export function OrderBlock({
   };
 
   const getItemKey = (oi: OrderItemWithDetails) => {
-    if (!oi.item_name_id || !oi.category_id) return undefined;
-    return `${oi.item_name_id}|${oi.category_id}|${oi.version ?? ''}`;
+    const itemNameId = oi.item_name_id;
+    const categoryId = oi.category_id;
+    if (!itemNameId || !categoryId) return undefined;
+    return `${itemNameId}|${categoryId}|${oi.version ?? ''}`;
   };
 
   const getArtworkStatus = (oi: OrderItemWithDetails) => {
@@ -331,6 +343,28 @@ export function OrderBlock({
     onOrderItemsChange(order.id, newItems);
   };
 
+  const sortItemNames = (items: ItemName[]) => [...items].sort((a, b) => a.name.localeCompare(b.name));
+  const sortCategories = (items: Category[]) => [...items].sort((a, b) => a.name.localeCompare(b.name));
+  const sortPackagingItemCombos = (items: PackagingItemCombo[]) =>
+    [...items].sort((a, b) =>
+      `${a.item_name?.name ?? ''} ${a.category?.name ?? ''}`.localeCompare(
+        `${b.item_name?.name ?? ''} ${b.category?.name ?? ''}`
+      )
+    );
+
+  const upsertPackagingItemCombo = (combo: PackagingItemCombo) => {
+    onPackagingItemCombosChange(
+      sortPackagingItemCombos([
+        ...packagingItemCombos.filter(
+          (existing) =>
+            existing.item_name_id !== combo.item_name_id || existing.category_id !== combo.category_id
+        ),
+        combo,
+      ])
+    );
+  };
+
+
   const scaledRem = (value: number) => `${value * tableZoom}rem`;
   const scaledColumnRem = (value: number) => `${value * columnScale}rem`;
 
@@ -351,10 +385,10 @@ export function OrderBlock({
     '--po-col-handle': scaledColumnRem(1.25),
     '--po-col-priority': scaledColumnRem(6.25),
     '--po-col-status': scaledColumnRem(3.5),
-    '--po-col-item': scaledColumnRem(14),
-    '--po-col-category': scaledColumnRem(8.4),
+    '--po-col-item': scaledColumnRem(22.4),
     '--po-col-qty': scaledColumnRem(4.8),
     '--po-col-overrun-percent': scaledColumnRem(2.4),
+    '--po-col-overrun-accepted': scaledColumnRem(5.25),
     '--po-col-version': scaledColumnRem(5),
     '--po-col-art': scaledColumnRem(2.5),
     '--po-col-invoice': scaledColumnRem(5.75),
@@ -472,12 +506,12 @@ export function OrderBlock({
               <span className="po-col-handle shrink-0" />
               <span className="po-col-priority po-gap shrink-0">Priority</span>
               <span className="po-col-status po-gap shrink-0">Status</span>
-              <span className="po-col-item po-gap shrink-0">Item</span>
-              <span className="po-col-category po-gap shrink-0">Category</span>
+              <span className="po-col-item po-gap shrink-0">PO Item</span>
               <span className="po-col-qty po-gap shrink-0 text-right">QTY</span>
               <span className="po-col-qty po-gap shrink-0 text-right">Final Qty</span>
               <span className="po-col-overrun-percent po-gap-tight shrink-0 text-right">OR %</span>
               <span className="po-col-qty po-gap shrink-0 text-right">Accept</span>
+              <span className="po-col-overrun-accepted po-overrun-accepted-col shrink-0 text-center">OR Accept</span>
               {access.canViewArtworkFields && <span className="po-col-version po-gap shrink-0">Version</span>}
               {access.canViewArtworkFields && (
                 <span
@@ -514,6 +548,7 @@ export function OrderBlock({
                       orderItem={oi}
                       itemNames={itemNames}
                       categories={categories}
+                      packagingItemCombos={packagingItemCombos}
                       invoiceOptions={invoiceOptions}
                       onInvoiceOptionsChange={onInvoiceOptionsChange}
                       artworkStatus={getArtworkStatus(oi)}
@@ -523,23 +558,70 @@ export function OrderBlock({
                       onDelete={handleItemDelete}
                       onChange={handleItemChange}
                       onInvoicePatch={handleInvoicePatch}
-                      onCreateItemName={createItemName}
-                      onUpdateItemName={updateItemName}
-                      onCreateCategory={(prefillName) => {
+                      onCreateItemName={async (name) => {
+                        const itemName = await createItemName(name);
+                        onItemNamesChange(sortItemNames([
+                          ...itemNames.filter((existing) => existing.id !== itemName.id),
+                          itemName,
+                        ]));
+                        return itemName;
+                      }}
+                      onUpdateItemName={async (id, name) => {
+                        const itemName = await updateItemName(id, name);
+                        onItemNamesChange(sortItemNames(
+                          itemNames.map((existing) => (existing.id === itemName.id ? itemName : existing))
+                        ));
+                        return itemName;
+                      }}
+                      onCreateCategory={(prefillName, onCreated) => {
                         if (!access.canManageCategories) return;
-                        setNewCategoryName(prefillName || '');
+                        categoryCreatedCallbackRef.current = onCreated ?? null;
+                        setNewCategoryName(prefillName?.trim() ?? '');
                         setCreatingCategory(true);
                       }}
                       onEditCategory={access.canManageCategories ? setEditingCategory : undefined}
+                      onCreatePackagingItemCombo={async (itemNameId, categoryId) => {
+                        const createdItem = await createItem({
+                          item_name_id: itemNameId,
+                          category_id: categoryId,
+                        });
+                        if (!createdItem.category) {
+                          throw new Error('Created packaging item is missing its category');
+                        }
+                        const combo: PackagingItemCombo = {
+                          id: `${createdItem.item_name_id}|${createdItem.category_id}`,
+                          item_name_id: createdItem.item_name_id,
+                          category_id: createdItem.category.id,
+                          item_name: createdItem.item_name,
+                          category: createdItem.category,
+                          latest_item_id: createdItem.id,
+                          latest_version: createdItem.version,
+                          business_central_item_id: createdItem.bc_item_id,
+                        };
+                        upsertPackagingItemCombo(combo);
+                        return combo;
+                      }}
                       onUpdatePackagingItemStatus={async (itemId, status) => {
                         await updateItem(itemId, { status });
                       }}
                       onCreatePackagingItem={async (itemNameId, categoryId, version) => {
-                        await createItem({
+                        const createdItem = await createItem({
                           item_name_id: itemNameId,
                           category_id: categoryId,
                           version,
                         });
+                        if (createdItem.category) {
+                          upsertPackagingItemCombo({
+                            id: `${createdItem.item_name_id}|${createdItem.category.id}`,
+                            item_name_id: createdItem.item_name_id,
+                            category_id: createdItem.category.id,
+                            item_name: createdItem.item_name,
+                            category: createdItem.category,
+                            latest_item_id: createdItem.id,
+                            latest_version: createdItem.version,
+                            business_central_item_id: createdItem.bc_item_id,
+                          });
+                        }
                       }}
                       approvalColumnWidth={approvalColumnWidth}
                     />
@@ -576,22 +658,38 @@ export function OrderBlock({
 
       {creatingCategory && access.canManageCategories && (
         <CategoryForm
-          initialName={newCategoryName}
           onSubmit={async (data) => {
-            await createCategory(data);
+            const category = await createCategory(data);
             setCreatingCategory(false);
-            onCategoriesChange();
+            setNewCategoryName('');
+            onCategoriesListChange(sortCategories([
+              ...categories.filter((existing) => existing.id !== category.id),
+              category,
+            ]));
+            categoryCreatedCallbackRef.current?.(category);
+            categoryCreatedCallbackRef.current = null;
+            await onCatalogOptionsChange();
           }}
-          onCancel={() => setCreatingCategory(false)}
+          initialName={newCategoryName}
+          zIndex={10020}
+          onCancel={() => {
+            setCreatingCategory(false);
+            setNewCategoryName('');
+            categoryCreatedCallbackRef.current = null;
+          }}
         />
       )}
       {editingCategory && access.canManageCategories && (
         <CategoryForm
           category={editingCategory}
+          zIndex={10020}
           onSubmit={async (data) => {
-            await updateCategory(editingCategory.id, data);
+            const category = await updateCategory(editingCategory.id, data);
             setEditingCategory(null);
-            onCategoriesChange();
+            onCategoriesListChange(sortCategories(
+              categories.map((existing) => (existing.id === category.id ? category : existing))
+            ));
+            await onCatalogOptionsChange();
           }}
           onCancel={() => setEditingCategory(null)}
         />
