@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CategoryTemplateInput } from '@/types/itemCategories';
 import { Category, ItemTemplate } from '@/types/database';
+import type { BusinessCentralReferenceData, BusinessCentralReferenceItem } from '@/types/businessCentralItems';
+
+const ITEM_TYPES = ['Inventory', 'Service', 'Non-Inventory'] as const;
 
 interface TemplateFormState {
   bcItemCategoryCode: string;
@@ -61,10 +64,83 @@ interface CategoryTemplateBlockProps {
   category: Category;
   template: ItemTemplate | null;
   canManage: boolean;
+  references: BusinessCentralReferenceData | null;
   onSaved: (template: ItemTemplate) => void;
 }
 
-export function CategoryTemplateBlock({ category, template, canManage, onSaved }: CategoryTemplateBlockProps) {
+interface ReferenceOption {
+  code: string;
+  label: string;
+}
+
+/**
+ * Renders a code field as a <select> of known-good codes when options are available,
+ * falling back to a free-text <Input> when the reference list is empty or failed to
+ * load (so the admin is never stuck facing an unusable, empty dropdown).
+ *
+ * If the currently-stored value isn't among the known options (e.g. BC no longer
+ * returns a code that's still saved on the template), it's injected as an extra,
+ * clearly-marked option so it stays visible and selected rather than being silently
+ * dropped the next time the form is saved.
+ */
+function ReferenceCodeField({
+  id,
+  label,
+  value,
+  disabled,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  disabled: boolean;
+  options: ReferenceOption[] | undefined;
+  onChange: (value: string) => void;
+}) {
+  const hasOptions = !!options && options.length > 0;
+  const isKnown = hasOptions && options!.some((o) => o.code === value);
+  const staleValue = hasOptions && value && !isKnown ? value : null;
+
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <Label htmlFor={id} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
+        {label}
+      </Label>
+      {hasOptions ? (
+        <select
+          id={id}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-full px-3 py-2 border border-border bg-surface rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="">— none —</option>
+          {staleValue && (
+            <option value={staleValue}>{staleValue} (not found in Business Central)</option>
+          )}
+          {options!.map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <Input id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+      )}
+    </div>
+  );
+}
+
+function toOptions(items: BusinessCentralReferenceItem[] | undefined): ReferenceOption[] | undefined {
+  if (!items) return undefined;
+  return items.map((r) => ({
+    code: r.code,
+    label: r.displayName ? `${r.code} — ${r.displayName}` : r.code,
+  }));
+}
+
+export function CategoryTemplateBlock({ category, template, canManage, references, onSaved }: CategoryTemplateBlockProps) {
   const baseline = template ? templateToForm(template) : EMPTY_FORM;
   const [form, setForm] = useState<TemplateFormState>(baseline);
   const [error, setError] = useState('');
@@ -118,77 +194,59 @@ export function CategoryTemplateBlock({ category, template, canManage, onSaved }
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={`${reactId}-bc-item-category`} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
-            BC item category code
-          </Label>
-          <Input
-            id={`${reactId}-bc-item-category`}
-            value={form.bcItemCategoryCode}
-            disabled={!canManage}
-            onChange={(event) => set('bcItemCategoryCode', event.target.value)}
-          />
-        </div>
+        <ReferenceCodeField
+          id={`${reactId}-bc-item-category`}
+          label="BC item category code"
+          value={form.bcItemCategoryCode}
+          disabled={!canManage}
+          options={toOptions(references?.itemCategories)}
+          onChange={(value) => set('bcItemCategoryCode', value)}
+        />
 
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={`${reactId}-default-type`} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
-            Default type
-          </Label>
-          <Input
-            id={`${reactId}-default-type`}
-            value={form.defaultType}
-            disabled={!canManage}
-            onChange={(event) => set('defaultType', event.target.value)}
-          />
-        </div>
+        <ReferenceCodeField
+          id={`${reactId}-default-type`}
+          label="Default type"
+          value={form.defaultType}
+          disabled={!canManage}
+          options={ITEM_TYPES.map((t) => ({ code: t, label: t }))}
+          onChange={(value) => set('defaultType', value)}
+        />
 
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={`${reactId}-base-uom`} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
-            Base unit of measure
-          </Label>
-          <Input
-            id={`${reactId}-base-uom`}
-            value={form.baseUnitOfMeasureCode}
-            disabled={!canManage}
-            onChange={(event) => set('baseUnitOfMeasureCode', event.target.value)}
-          />
-        </div>
+        <ReferenceCodeField
+          id={`${reactId}-base-uom`}
+          label="Base unit of measure"
+          value={form.baseUnitOfMeasureCode}
+          disabled={!canManage}
+          options={toOptions(references?.unitsOfMeasure)}
+          onChange={(value) => set('baseUnitOfMeasureCode', value)}
+        />
 
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={`${reactId}-tax-group`} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
-            Tax group
-          </Label>
-          <Input
-            id={`${reactId}-tax-group`}
-            value={form.taxGroupCode}
-            disabled={!canManage}
-            onChange={(event) => set('taxGroupCode', event.target.value)}
-          />
-        </div>
+        <ReferenceCodeField
+          id={`${reactId}-tax-group`}
+          label="Tax group"
+          value={form.taxGroupCode}
+          disabled={!canManage}
+          options={toOptions(references?.taxGroups)}
+          onChange={(value) => set('taxGroupCode', value)}
+        />
 
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={`${reactId}-gen-posting`} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
-            General product posting group
-          </Label>
-          <Input
-            id={`${reactId}-gen-posting`}
-            value={form.generalProductPostingGroupCode}
-            disabled={!canManage}
-            onChange={(event) => set('generalProductPostingGroupCode', event.target.value)}
-          />
-        </div>
+        <ReferenceCodeField
+          id={`${reactId}-gen-posting`}
+          label="General product posting group"
+          value={form.generalProductPostingGroupCode}
+          disabled={!canManage}
+          options={toOptions(references?.generalProductPostingGroups)}
+          onChange={(value) => set('generalProductPostingGroupCode', value)}
+        />
 
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={`${reactId}-inv-posting`} className="text-[11px] uppercase tracking-wide text-foreground-subtle">
-            Inventory posting group
-          </Label>
-          <Input
-            id={`${reactId}-inv-posting`}
-            value={form.inventoryPostingGroupCode}
-            disabled={!canManage}
-            onChange={(event) => set('inventoryPostingGroupCode', event.target.value)}
-          />
-        </div>
+        <ReferenceCodeField
+          id={`${reactId}-inv-posting`}
+          label="Inventory posting group"
+          value={form.inventoryPostingGroupCode}
+          disabled={!canManage}
+          options={toOptions(references?.inventoryPostingGroups)}
+          onChange={(value) => set('inventoryPostingGroupCode', value)}
+        />
       </div>
 
       <div className="flex items-center gap-6">

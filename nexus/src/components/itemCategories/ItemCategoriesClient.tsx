@@ -24,6 +24,7 @@ import { CategoryBadge } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { Category, ItemTemplate } from '@/types/database';
 import { ItemCategoryRow } from '@/types/itemCategories';
+import type { BusinessCentralReferenceData } from '@/types/businessCentralItems';
 import { CategorySettingsBlock } from './CategorySettingsBlock';
 import { CategoryNumberingBlock } from './CategoryNumberingBlock';
 import { CategoryTemplateBlock } from './CategoryTemplateBlock';
@@ -31,13 +32,14 @@ import { CategoryTemplateBlock } from './CategoryTemplateBlock';
 interface ItemCategoriesClientProps {
   rows: ItemCategoryRow[];
   canManage: boolean;
+  references: BusinessCentralReferenceData | null;
 }
 
 function numberingLabel(category: Category): string {
   return category.bc_no_series_code ? `(${category.bc_no_series_code})` : '(manual)';
 }
 
-export function ItemCategoriesClient({ rows: initialRows, canManage }: ItemCategoriesClientProps) {
+export function ItemCategoriesClient({ rows: initialRows, canManage, references }: ItemCategoriesClientProps) {
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<ItemCategoryRow[]>(initialRows);
   const [search, setSearch] = useState('');
@@ -217,6 +219,7 @@ export function ItemCategoriesClient({ rows: initialRows, canManage }: ItemCateg
                     category={selectedRow.category}
                     template={selectedRow.template}
                     canManage={canManage}
+                    references={references}
                     onSaved={(template) => updateRowTemplate(selectedRow.category.id, template)}
                   />
                 </div>
