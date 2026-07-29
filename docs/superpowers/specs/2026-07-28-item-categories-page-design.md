@@ -25,7 +25,7 @@ A secondary motivation: the same category is currently managed across two screen
 
 - No changes to how categories are consumed by packaging items, order lines, or artwork.
 - No new permission keys.
-- No usage-statistics block. Referenced-category protection surfaces only as a delete guard.
+- No usage-statistics block. The count of items referencing a category surfaces only in the delete confirmation.
 - No changes to BC Credentials or BC Environments management, which remain on `/admin`.
 
 ## Decisions
@@ -88,7 +88,11 @@ Three stacked bordered cards, each with its own heading and its own Save button,
 
 ### Delete
 
-Lives in the detail pane. It must refuse when the category is referenced by packaging items or order lines, with a message stating the count — deleting a category out from under existing orders would orphan real data.
+Lives in the detail pane, and **preserves the existing detach-then-delete behaviour** rather than refusing.
+
+An earlier draft of this spec said delete should refuse when a category is referenced. That would reverse a deliberate decision: `deleteCategory` already nulls `items.category_id` before deleting, migration 005 is titled *"Make category_id nullable to allow category deletion"*, and the foreign keys are declared `ON DELETE SET NULL`. Detaching is the intended design.
+
+What this page adds is honesty about the consequence: the confirmation dialog states how many items will be detached from the category before the user proceeds.
 
 ## Files
 
@@ -122,7 +126,7 @@ Worth recording, and worth *not* propagating: `canManageCategories` exists as a 
 
 - **Per-block save actions**, including that saving one block does not clobber another block's fields.
 - **Number series validation** against a fake BC client: a valid Normal series is accepted; a non-existent code is rejected with a clear message; a gap-allowing series is rejected naming the Allow Gaps requirement; a blank value is accepted and means manual.
-- **Delete guard** — a category referenced by a packaging item or an order line refuses deletion and reports the count.
+- **Delete confirmation** — a category referenced by items reports the number that will be detached before proceeding, and deletion then detaches them rather than refusing.
 - **Unique constraint** — a second template for the same category is rejected.
 - **A real page load against the dev server**, not only `npm run build`. Production `next build` and Turbopack dev use different transforms; a `'use server'` export error shipped earlier in this project with `tsc`, tests, and build all green while the page would not load. Loading the route is part of the definition of done.
 
