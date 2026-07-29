@@ -44,12 +44,18 @@ This plan **preserves that behaviour** and adds a confirmation dialog stating ho
 -- Make the one-template-per-category relationship real rather than merely
 -- assumed by the UI. Categories are already environment-scoped via
 -- bc_connection_id, so a category implies its environment and a plain unique
--- index on category_id is sufficient. Partial, because category_id is
--- nullable and NULLs must stay unconstrained.
+-- index on category_id is sufficient.
+--
+-- Deliberately NOT a partial index. Two reasons:
+--  1. Unnecessary — Postgres treats NULLs as distinct in a unique index, so
+--     unlimited rows with a null category_id are already permitted.
+--  2. Harmful — Postgres excludes partial indexes from ON CONFLICT arbiter
+--     inference unless the statement repeats the predicate, and supabase-js's
+--     `onConflict` option emits only a bare column list. A partial index here
+--     would make saveCategoryTemplate's upsert fail with error 42P10.
 
 create unique index if not exists item_templates_one_per_category_idx
-  on public.item_templates (category_id)
-  where category_id is not null;
+  on public.item_templates (category_id);
 ```
 
 - [ ] **Step 2: Apply and verify**
@@ -290,8 +296,9 @@ git commit -m "feat(categories): validate No. Series against BC on save"
 **Interfaces:**
 - Consumes: `requireActiveBusinessCentralScope`, `createClient`, `createNoSeriesClientForOrg`, `validateSeriesCode`, `Category`, `ItemTemplate`, `DimensionUnit`.
 - Produces:
-  - `interface ItemCategoryRow { category: Category; template: ItemTemplate | null; itemCount: number }`
+  - `interface ItemCategoryRow { category: Category; template: ItemTemplate | null }` — **lives in `nexus/src/types/itemCategories.ts`, NOT in the actions file.** A `'use server'` module may only export async functions; keeping types out of it removes any question about how the Turbopack transform handles them.
   - `getItemCategoriesPageData(): Promise<{ rows: ItemCategoryRow[]; canManage: boolean }>`
+  - `getCategoryItemCount(categoryId: string): Promise<number>` — exact count for ONE category via a head-only count query. Used by the delete confirmation. Deliberately not a bulk count on page load: PostgREST caps rows (typically 1000), so tallying every `items` row in JavaScript would silently undercount on a large org — and that number is what the user sees before agreeing to detach.
   - `saveCategorySettings(id, { name, width, height, depth, unit, color }): Promise<Category>`
   - `saveCategoryNumbering(id, { bcNoSeriesCode }): Promise<Category>`
   - `saveCategoryTemplate(categoryId, input): Promise<ItemTemplate>`
@@ -652,7 +659,7 @@ A master-detail shell mirroring the items page layout. It must:
 - select the first category by default, and reflect the selected id in the URL via a `?id=` search param so the view is linkable — follow however `ItemsClient.tsx` already does this rather than inventing a mechanism
 - render the three blocks stacked in the detail pane, in order: settings, numbering, template
 - provide a **New category** action (name only) calling `createItemCategory`, then select the created row
-- provide **Delete** in the detail pane. It must confirm first, and when `itemCount > 0` the confirmation must state how many items will be detached from this category — deletion detaches rather than refuses, and the user should know that before confirming
+- provide **Delete** in the detail pane. It must confirm first, and the confirmation must state how many items will be detached from this category — deletion detaches rather than refuses, and the user should know that before agreeing. Fetch the number by calling `getCategoryItemCount(category.id)` when the confirmation opens; there is deliberately no bulk count on the row (see Task 4). Show a loading state while the count resolves rather than a misleading zero, and do not block deletion if the count query fails — fall back to a confirmation that warns items may be detached without naming a number
 - show an empty state when there are no categories at all
 - gate every mutating affordance on `canManage`
 
@@ -806,6 +813,11 @@ Record in `BACKLOG.md` that the item categories page is done, and that it unbloc
 
 **Where this plan deliberately has no unit tests.** Only Task 3 is unit-tested. The server actions in Task 4 depend on a request-scoped Supabase client and there is no existing precedent in this repo for testing server actions in isolation — the established pattern tests pure modules (mappers, calculations, validation) and verifies actions through use. Inventing a mocking harness here would be new infrastructure beyond this feature's scope. Task 8 is what covers them, which is why its failure cases are enumerated rather than left to judgement.
 
-**Type consistency.** `ItemCategoryRow` is defined once in Task 4 and consumed unchanged in Task 6. `CategoryTemplateInput` is defined in Task 4 and consumed in Task 5. `validateSeriesCode` / `normalizeSeriesCode` signatures match between Tasks 3 and 4. `DimensionUnit` is the existing `"mm" | "cm" | "in"` union. `COLOR_KEYS` comes from the existing `categoryColors` module.
+**Amendments made during implementation** (Task 4's review found all three):
+1. Migration 044 is a plain, not partial, unique index — a partial index cannot serve as an `ON CONFLICT` arbiter, which would have made every template save fail with error 42P10. The predicate was also unnecessary, since Postgres already treats NULLs as distinct in a unique index.
+2. `ItemCategoryRow` and `CategoryTemplateInput` live in `nexus/src/types/itemCategories.ts`, not in the `'use server'` actions file. The Task 4 code block below still shows them inline — the types file is authoritative.
+3. `itemCount` was removed from `ItemCategoryRow` in favour of `getCategoryItemCount(categoryId)`, because a bulk JS tally silently undercounts past PostgREST's row cap. The Task 4 code block below still shows the bulk count — the amended shape is authoritative.
+
+**Type consistency.** `ItemCategoryRow` is defined once (in the types module) and consumed unchanged in Task 6. `CategoryTemplateInput` is defined in Task 4 and consumed in Task 5. `validateSeriesCode` / `normalizeSeriesCode` signatures match between Tasks 3 and 4. `DimensionUnit` is the existing `"mm" | "cm" | "in"` union. `COLOR_KEYS` comes from the existing `categoryColors` module.
 
 **Verified against real source while writing, rather than assumed:** the permission key actually enforced by `categories.ts` (`canManageCatalog`, not `canManageCategories`); that `updateCategory`'s blanket `{...data}` spread would send a camelCase key to Postgres and therefore needs replacing; that `SeriesNotNormalError` already exists with an Allow-Gaps message worth reusing; that `deleteCategory` detaches items rather than refusing; and that `items` — not `packaging_items` — is the current table name, despite what `nexus/CLAUDE.md` says.
