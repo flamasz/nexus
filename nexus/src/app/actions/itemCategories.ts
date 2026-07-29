@@ -1,0 +1,241 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
+import { createNoSeriesClientForOrg } from '@/lib/businessCentral/noSeriesClient';
+import { validateSeriesCode } from '@/lib/businessCentral/noSeriesValidation';
+import { createClient } from '@/lib/supabase/server';
+import { Category, DimensionUnit, ItemTemplate } from '@/types/database';
+
+export interface ItemCategoryRow {
+  category: Category;
+  template: ItemTemplate | null;
+  itemCount: number;
+}
+
+async function requireManage() {
+  const scope = await requireActiveBusinessCentralScope();
+  if (!scope.access.canManageCatalog) {
+    throw new Error('You do not have permission to manage categories');
+  }
+  return scope;
+}
+
+export async function getItemCategoriesPageData(): Promise<{
+  rows: ItemCategoryRow[];
+  canManage: boolean;
+}> {
+  const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
+  const supabase = await createClient();
+
+  const { data: categories, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
+    .order('name', { ascending: true });
+  if (error) throw error;
+
+  const categoryIds = (categories ?? []).map((c) => c.id);
+
+  const [{ data: templates }, { data: items }] = await Promise.all([
+    supabase.from('item_templates').select('*').in('category_id', categoryIds.length ? categoryIds : ['']),
+    supabase
+      .from('items')
+      .select('category_id')
+      .eq('organization_id', orgId)
+      .eq('bc_connection_id', bcConnectionId)
+      .in('category_id', categoryIds.length ? categoryIds : ['']),
+  ]);
+
+  const templateByCategory = new Map<string, ItemTemplate>();
+  for (const t of (templates ?? []) as ItemTemplate[]) {
+    if (t.category_id) templateByCategory.set(t.category_id, t);
+  }
+
+  const counts = new Map<string, number>();
+  for (const row of items ?? []) {
+    const key = (row as { category_id: string | null }).category_id;
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return {
+    rows: ((categories ?? []) as Category[]).map((category) => ({
+      category,
+      template: templateByCategory.get(category.id) ?? null,
+      itemCount: counts.get(category.id) ?? 0,
+    })),
+    canManage: access.canManageCatalog,
+  };
+}
+
+export async function saveCategorySettings(
+  id: string,
+  input: {
+    name: string;
+    width: number | null;
+    height: number | null;
+    depth: number | null;
+    unit: DimensionUnit;
+    color: string | null;
+  }
+): Promise<Category> {
+  const { orgId, bcConnectionId } = await requireManage();
+  const name = input.name.trim();
+  if (!name) throw new Error('Category name is required');
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('categories')
+    .update({
+      name,
+      width: input.width,
+      height: input.height,
+      depth: input.depth,
+      unit: input.unit,
+      color: input.color || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
+    .select()
+    .single();
+  if (error) throw error;
+
+  revalidatePath('/item-categories');
+  return data as Category;
+}
+
+export async function saveCategoryNumbering(
+  id: string,
+  input: { bcNoSeriesCode: string | null }
+): Promise<Category> {
+  const { orgId, bcConnectionId } = await requireManage();
+
+  // Validated against BC BEFORE persisting, so an invalid or gap-allowing
+  // series is never stored. Throws SeriesNotFoundError / SeriesNotNormalError,
+  // both of which carry admin-readable messages.
+  const noSeries = await createNoSeriesClientForOrg(orgId, bcConnectionId);
+  const code = await validateSeriesCode(noSeries, input.bcNoSeriesCode);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('categories')
+    .update({ bc_no_series_code: code, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
+    .select()
+    .single();
+  if (error) throw error;
+
+  revalidatePath('/item-categories');
+  return data as Category;
+}
+
+export interface CategoryTemplateInput {
+  bcItemCategoryCode: string | null;
+  defaultType: string;
+  baseUnitOfMeasureCode: string | null;
+  taxGroupCode: string | null;
+  generalProductPostingGroupCode: string | null;
+  inventoryPostingGroupCode: string | null;
+  priceIncludesTax: boolean;
+  blocked: boolean;
+}
+
+export async function saveCategoryTemplate(
+  categoryId: string,
+  input: CategoryTemplateInput
+): Promise<ItemTemplate> {
+  const { orgId, bcConnectionId } = await requireManage();
+  const supabase = await createClient();
+
+  const { data: category, error: catError } = await supabase
+    .from('categories')
+    .select('id, name')
+    .eq('id', categoryId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId)
+    .single();
+  if (catError) throw catError;
+
+  const { data, error } = await supabase
+    .from('item_templates')
+    .upsert(
+      {
+        organization_id: orgId,
+        bc_connection_id: bcConnectionId,
+        // One template per category, so the template's name is derived rather
+        // than separately editable — there is nothing to disambiguate.
+        name: (category as { name: string }).name,
+        category_id: categoryId,
+        bc_item_category_code: input.bcItemCategoryCode,
+        default_type: input.defaultType,
+        base_unit_of_measure_code: input.baseUnitOfMeasureCode,
+        tax_group_code: input.taxGroupCode,
+        general_product_posting_group_code: input.generalProductPostingGroupCode,
+        inventory_posting_group_code: input.inventoryPostingGroupCode,
+        price_includes_tax: input.priceIncludesTax,
+        blocked: input.blocked,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'category_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+
+  revalidatePath('/item-categories');
+  return data as ItemTemplate;
+}
+
+export async function createItemCategory(name: string): Promise<Category> {
+  const { orgId, bcConnectionId } = await requireManage();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Category name is required');
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({
+      name: trimmed,
+      unit: 'mm' as DimensionUnit,
+      organization_id: orgId,
+      bc_connection_id: bcConnectionId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+
+  revalidatePath('/item-categories');
+  return data as Category;
+}
+
+export async function deleteItemCategory(id: string): Promise<void> {
+  const { orgId, bcConnectionId } = await requireManage();
+  const supabase = await createClient();
+
+  // Detach rather than refuse: migration 005 ("Make category_id nullable to
+  // allow category deletion") and the ON DELETE SET NULL foreign keys make
+  // this the intended behaviour. The UI confirms the affected item count first.
+  const { error: detachError } = await supabase
+    .from('items')
+    .update({ category_id: null })
+    .eq('category_id', id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
+  if (detachError) throw detachError;
+
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
+  if (error) throw error;
+
+  revalidatePath('/item-categories');
+}
