@@ -582,9 +582,14 @@ git commit -m "feat(categories): server actions for the item categories page"
 
 - [ ] **Step 1: Read the conventions to match**
 
-Run: `cd nexus && sed -n '1,60p' src/components/customers/CustomerDetail.tsx`
+**Do NOT reference `src/components/customers/*` — those files live on a different branch and do not exist here.** The conventions to match on THIS branch are:
 
-Match the primitives it imports from `@/components/ui/...`, its card/section markup, and its class conventions. This project has an established dark UI design system — introduce no new visual patterns, no bespoke CSS, no new libraries.
+- `src/components/items/ItemsClient.tsx` — the master-detail shell and header idioms
+- `src/components/items/PurchaseVersionBlock.tsx` — a bordered block with its own save
+- `src/components/items/ItemTemplatesCard.tsx` — the template field set as it exists today
+- `src/components/gs1/Gs1FieldsPanel.tsx` — grouped field layout
+
+Match the primitives they import from `@/components/ui/...`, their card/section markup, and their class conventions. This project has an established dark UI design system — introduce no new visual patterns, no bespoke CSS, no new libraries.
 
 - [ ] **Step 2: Build `CategorySettingsBlock`**
 
