@@ -37,7 +37,7 @@ A secondary motivation: the same category is currently managed across two screen
 | Existing surfaces | Replaced | Category editing leaves `/settings`; `ItemTemplatesCard` leaves `/admin`. One home per concept. |
 | Save granularity | Per block | The blocks write to two different tables. A template failure must not discard category edits, and errors belong next to the fields that caused them. |
 | No. Series validation | Verified against BC on save | Turns a documented manual pre-flight into something the app enforces (see below). |
-| Permissions | Reuse `canManageCategories` / `canManageCatalog` | This is catalogue management, which the existing keys already describe. |
+| Permissions | Reuse the existing `canManageCatalog` | This is what `app/actions/categories.ts` already enforces on create, update, and delete. No new key. |
 
 ## Data model
 
@@ -111,6 +111,12 @@ Blocks are separate components deliberately. `ItemsClient.tsx` has grown to roug
 BC Credentials and BC Environments stay on `/admin` — those are connection configuration, not catalogue.
 
 These removals are the riskiest part of the change, because everything else is additive. They can be sequenced as a follow-up step if the new page should prove itself first.
+
+## Permissions
+
+Reuse the existing **`canManageCatalog`**. That is what `app/actions/categories.ts` already enforces on create, update, and delete, so gating the page on anything else would produce a screen that renders but whose saves are refused. The page, the items-page entry button, and every new server action use that one gate.
+
+Worth recording, and worth *not* propagating: `canManageCategories` exists as a separate key and is used for UI affordances in `OrderBlock.tsx`, while the underlying category actions check `canManageCatalog`. This design does not attempt to resolve that inconsistency; it follows what the actions actually enforce.
 
 ## Testing
 
