@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  Boxes,
   FileSpreadsheet,
   GitCompareArrows,
   Link2Off,
@@ -425,6 +426,17 @@ export function ItemsClient({
           </Button>
         </div>
       </header>
+
+      {access.canManageCatalog && (
+        <div className="border-b border-border px-5 py-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/item-categories">
+              <Boxes className="size-4" />
+              Item categories
+            </Link>
+          </Button>
+        </div>
+      )}
 
       <Gs1ImportModal open={gs1ImportOpen} onOpenChange={setGs1ImportOpen} />
 
