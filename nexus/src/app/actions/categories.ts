@@ -54,6 +54,7 @@ export async function createCategory(data: {
   depth?: number | null;
   unit: DimensionUnit;
   color?: string;
+  bcNoSeriesCode?: string | null;
 }): Promise<Category> {
   const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
   if (!access.canManageCatalog) {
@@ -70,6 +71,7 @@ export async function createCategory(data: {
       depth: data.depth ?? null,
       unit: data.unit,
       color: data.color || null,
+      bc_no_series_code: data.bcNoSeriesCode ?? null,
       organization_id: orgId,
       bc_connection_id: bcConnectionId,
     })
@@ -93,6 +95,7 @@ export async function updateCategory(
     depth?: number | null;
     unit?: DimensionUnit;
     color?: string;
+    bcNoSeriesCode?: string | null;
   }
 ): Promise<Category> {
   const { orgId, bcConnectionId, access } = await requireActiveBusinessCentralScope();
@@ -101,9 +104,20 @@ export async function updateCategory(
   }
 
   const supabase = await createClient();
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.width !== undefined) updates.width = data.width;
+  if (data.height !== undefined) updates.height = data.height;
+  if (data.depth !== undefined) updates.depth = data.depth;
+  if (data.unit !== undefined) updates.unit = data.unit;
+  if (data.color !== undefined) updates.color = data.color || null;
+  if (data.bcNoSeriesCode !== undefined) {
+    updates.bc_no_series_code = data.bcNoSeriesCode || null;
+  }
+
   const { data: category, error } = await supabase
     .from('categories')
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq('id', id)
     .eq('organization_id', orgId)
     .eq('bc_connection_id', bcConnectionId)
