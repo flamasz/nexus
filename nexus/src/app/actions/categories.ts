@@ -71,7 +71,7 @@ export async function createCategory(data: {
       depth: data.depth ?? null,
       unit: data.unit,
       color: data.color || null,
-      bc_no_series_code: data.bcNoSeriesCode ?? null,
+      bc_no_series_code: data.bcNoSeriesCode || null,
       organization_id: orgId,
       bc_connection_id: bcConnectionId,
     })
