@@ -88,8 +88,10 @@ The actual blocker. The field is absent from `categories.ts` entirely, so no UI 
 Add `bcNoSeriesCode?: string | null;` to its `data` parameter type, and add to the `.insert({ ... })` object:
 
 ```ts
-      bc_no_series_code: data.bcNoSeriesCode ?? null,
+      bc_no_series_code: data.bcNoSeriesCode || null,
 ```
+
+Note `|| null`, not `?? null` — an empty string must clear to null, because blank means manual numbering. This must match `updateCategory` in Step 2; using `??` here would persist `''` on create while update cleared it.
 
 - [ ] **Step 2: Extend `updateCategory`**
 
