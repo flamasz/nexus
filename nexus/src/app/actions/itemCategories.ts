@@ -6,12 +6,7 @@ import { createNoSeriesClientForOrg } from '@/lib/businessCentral/noSeriesClient
 import { validateSeriesCode } from '@/lib/businessCentral/noSeriesValidation';
 import { createClient } from '@/lib/supabase/server';
 import { Category, DimensionUnit, ItemTemplate } from '@/types/database';
-
-export interface ItemCategoryRow {
-  category: Category;
-  template: ItemTemplate | null;
-  itemCount: number;
-}
+import { CategoryTemplateInput, ItemCategoryRow } from '@/types/itemCategories';
 
 async function requireManage() {
   const scope = await requireActiveBusinessCentralScope();
@@ -38,35 +33,38 @@ export async function getItemCategoriesPageData(): Promise<{
 
   const categoryIds = (categories ?? []).map((c) => c.id);
 
-  const [{ data: templates }, { data: items }] = await Promise.all([
-    supabase.from('item_templates').select('*').in('category_id', categoryIds.length ? categoryIds : ['']),
-    supabase
-      .from('items')
-      .select('category_id')
-      .eq('organization_id', orgId)
-      .eq('bc_connection_id', bcConnectionId)
-      .in('category_id', categoryIds.length ? categoryIds : ['']),
-  ]);
+  const { data: templates } = await supabase
+    .from('item_templates')
+    .select('*')
+    .in('category_id', categoryIds.length ? categoryIds : ['']);
 
   const templateByCategory = new Map<string, ItemTemplate>();
   for (const t of (templates ?? []) as ItemTemplate[]) {
     if (t.category_id) templateByCategory.set(t.category_id, t);
   }
 
-  const counts = new Map<string, number>();
-  for (const row of items ?? []) {
-    const key = (row as { category_id: string | null }).category_id;
-    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
   return {
     rows: ((categories ?? []) as Category[]).map((category) => ({
       category,
       template: templateByCategory.get(category.id) ?? null,
-      itemCount: counts.get(category.id) ?? 0,
     })),
     canManage: access.canManageCatalog,
   };
+}
+
+export async function getCategoryItemCount(categoryId: string): Promise<number> {
+  const { orgId, bcConnectionId } = await requireActiveBusinessCentralScope();
+  const supabase = await createClient();
+
+  const { count, error } = await supabase
+    .from('items')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', categoryId)
+    .eq('organization_id', orgId)
+    .eq('bc_connection_id', bcConnectionId);
+  if (error) throw error;
+
+  return count ?? 0;
 }
 
 export async function saveCategorySettings(
@@ -132,17 +130,6 @@ export async function saveCategoryNumbering(
 
   revalidatePath('/item-categories');
   return data as Category;
-}
-
-export interface CategoryTemplateInput {
-  bcItemCategoryCode: string | null;
-  defaultType: string;
-  baseUnitOfMeasureCode: string | null;
-  taxGroupCode: string | null;
-  generalProductPostingGroupCode: string | null;
-  inventoryPostingGroupCode: string | null;
-  priceIncludesTax: boolean;
-  blocked: boolean;
 }
 
 export async function saveCategoryTemplate(
