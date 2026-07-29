@@ -2,18 +2,10 @@
 
 import { useState, useEffect } from 'react';
 
-import { CategoryForm } from '@/components/packaging';
-import { Category } from '@/types/database';
-import { getCategories, updateCategory, deleteCategory } from '@/app/actions/categories';
 import { getOrgOrderSettings, upsertOrgOrderSettings } from '@/app/actions/settings';
-import { getCategoryColorClasses } from '@/lib/categoryColors';
-import { formatDimensions } from '@/lib/utils/formatDimensions';
 
 export default function SettingsPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [orderPrefix, setOrderPrefix] = useState('PO');
   const [orderPadding, setOrderPadding] = useState(5);
   const [orderSettingsSaving, setOrderSettingsSaving] = useState(false);
@@ -22,11 +14,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [categoriesData, orderSettings] = await Promise.all([
-          getCategories(),
-          getOrgOrderSettings(),
-        ]);
-        setCategories(categoriesData);
+        const orderSettings = await getOrgOrderSettings();
         if (orderSettings) {
           setOrderPrefix(orderSettings.order_prefix);
           setOrderPadding(orderSettings.order_padding);
@@ -39,27 +27,6 @@ export default function SettingsPage() {
     }
     loadData();
   }, []);
-
-  const handleUpdateCategory = async (data: {
-    name: string;
-    width: number | null;
-    height: number | null;
-    depth: number | null;
-    unit: 'mm' | 'cm' | 'in';
-    color: string;
-  }) => {
-    if (!editingCategory) return;
-    try {
-      const updated = await updateCategory(editingCategory.id, data);
-      setCategories((prev) => 
-        prev.map((c) => (c.id === updated.id ? updated : c)).sort((a, b) => a.name.localeCompare(b.name))
-      );
-      setEditingCategory(null);
-    } catch (error) {
-      console.error('Failed to update category:', error);
-      alert('Failed to update category');
-    }
-  };
 
   const handleSaveOrderSettings = async () => {
     setOrderSettingsSaving(true);
@@ -76,19 +43,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
-    if (!confirm(`Delete category "${categoryName}"? Packaging items using this category will become uncategorized.`)) {
-      return;
-    }
-    try {
-      await deleteCategory(categoryId);
-      setCategories((prev) => prev.filter((c) => c.id !== categoryId));
-    } catch (error) {
-      console.error('Failed to delete category:', error);
-      alert('Failed to delete category');
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center bg-background">
@@ -102,73 +56,8 @@ export default function SettingsPage() {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-xl lg:text-2xl font-bold text-foreground mb-6">Settings</h1>
 
-          <div className="bg-surface rounded-lg border border-border shadow-sm">
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">Categories</h2>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="px-3 py-1.5 text-sm bg-primary hover:bg-primary-hover text-primary-foreground rounded-md transition-colors"
-              >
-                + New Category
-              </button>
-            </div>
-
-            <div className="divide-y divide-border">
-              {categories.length === 0 ? (
-                <div className="px-6 py-8 text-center text-foreground-muted">
-                  <p>No categories yet</p>
-                  <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="mt-2 text-sm text-primary hover:text-primary-hover"
-                  >
-                    Create your first category
-                  </button>
-                </div>
-              ) : (
-                categories.map((category) => {
-                  const colorStyles = getCategoryColorClasses(category.color, category.name);
-                  return (
-                  <div key={category.id} className="px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {colorStyles.style ? (
-                        <span 
-                          className="inline-block px-2.5 py-1 text-sm font-medium rounded border"
-                          style={colorStyles.style}
-                        >
-                          {category.name}
-                        </span>
-                      ) : (
-                        <span className={`inline-block px-2.5 py-1 text-sm font-medium rounded border ${colorStyles.bg} ${colorStyles.text} ${colorStyles.border}`}>
-                          {category.name}
-                        </span>
-                      )}
-                      <p className="text-sm text-foreground-muted">
-                        {formatDimensions(category.width, category.height, category.depth, category.unit)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setEditingCategory(category)}
-                        className="px-3 py-1.5 text-sm text-foreground-muted hover:text-foreground hover:bg-surface-raised rounded-md transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCategory(category.id, category.name)}
-                        className="px-3 py-1.5 text-sm text-destructive hover:bg-destructive-subtle rounded-md transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
           {/* Order Number Format */}
-          <div className="bg-surface rounded-lg border border-border shadow-sm mt-6">
+          <div className="bg-surface rounded-lg border border-border shadow-sm">
             <div className="px-6 py-4 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">Order Number Format</h2>
               <p className="text-sm text-foreground-muted mt-0.5">
@@ -214,22 +103,6 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-
-      {(editingCategory || showCreateForm) && (
-        <CategoryForm
-          category={editingCategory || undefined}
-          onSubmit={editingCategory ? handleUpdateCategory : async (data) => {
-            const { createCategory } = await import('@/app/actions/categories');
-            const newCategory = await createCategory(data);
-            setCategories((prev) => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)));
-            setShowCreateForm(false);
-          }}
-          onCancel={() => {
-            setEditingCategory(null);
-            setShowCreateForm(false);
-          }}
-        />
-      )}
     </main>
   );
 }

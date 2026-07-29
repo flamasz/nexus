@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { UserList } from '@/components/admin';
 import { BcCredentialsCard } from '@/components/businessCentral/BcCredentialsCard';
 import { BcEnvironmentsCard } from '@/components/businessCentral/BcEnvironmentsCard';
-import { ItemTemplatesCard } from '@/components/items/ItemTemplatesCard';
 import { getAllUsers, changeUserPassword, getCurrentUser, updateUserAccess } from '@/app/actions/users';
 import { resolveUserAccess } from '@/lib/auth/permissions';
 
@@ -39,7 +38,6 @@ export default async function AdminPage() {
           </p>
           <BcCredentialsCard />
           <BcEnvironmentsCard />
-          <ItemTemplatesCard />
         </div>
       </main>
     </div>
