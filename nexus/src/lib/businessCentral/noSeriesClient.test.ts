@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createNoSeriesClient } from './noSeriesClient';
+import { createNoSeriesClient, NoSeriesPageUnavailableError } from './noSeriesClient';
 import type { BcClient } from './client';
 
 function fakeBcClient(): BcClient {
@@ -30,6 +30,33 @@ describe('getOpenLine', () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ value: [] }), { status: 200 }));
     const client = createNoSeriesClient(fakeBcClient(), 'C', fetchImpl as unknown as typeof fetch);
     expect(await client.getOpenLine('NOPE')).toBeNull();
+  });
+
+  it('throws NoSeriesPageUnavailableError on 404 naming the service and page', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Not Found', { status: 404, statusText: 'Not Found' }));
+    const client = createNoSeriesClient(fakeBcClient(), 'C', fetchImpl as unknown as typeof fetch);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.toThrow(NoSeriesPageUnavailableError);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.toThrow(/NoSeriesLines/);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.toThrow(/457/);
+  });
+
+  it('throws NoSeriesPageUnavailableError on 403', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Forbidden', { status: 403, statusText: 'Forbidden' }));
+    const client = createNoSeriesClient(fakeBcClient(), 'C', fetchImpl as unknown as typeof fetch);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.toThrow(NoSeriesPageUnavailableError);
+  });
+
+  it('throws NoSeriesPageUnavailableError on 401', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' }));
+    const client = createNoSeriesClient(fakeBcClient(), 'C', fetchImpl as unknown as typeof fetch);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.toThrow(NoSeriesPageUnavailableError);
+  });
+
+  it('throws the generic error on 500, not NoSeriesPageUnavailableError', async () => {
+    const fetchImpl = vi.fn(async () => new Response('Server Error', { status: 500, statusText: 'Internal Server Error' }));
+    const client = createNoSeriesClient(fakeBcClient(), 'C', fetchImpl as unknown as typeof fetch);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.not.toBeInstanceOf(NoSeriesPageUnavailableError);
+    await expect(client.getOpenLine('NEXUS-TEST')).rejects.toThrow(/No\. Series read failed: 500/);
   });
 });
 
