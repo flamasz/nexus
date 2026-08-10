@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireActiveBusinessCentralScope } from '@/lib/businessCentral/environmentScope';
 import { createNoSeriesClientForOrg } from '@/lib/businessCentral/noSeriesClient';
 import { validateSeriesCode } from '@/lib/businessCentral/noSeriesValidation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { Category, DimensionUnit, ItemTemplate } from '@/types/database';
 import { CategoryTemplateInput, ItemCategoryRow } from '@/types/itemCategories';
 
@@ -148,7 +148,15 @@ export async function saveCategoryTemplate(
     .single();
   if (catError) throw catError;
 
-  const { data, error } = await supabase
+  // item_templates (migration 039) has RLS enabled with a SELECT-only policy —
+  // by design there is no INSERT/UPDATE policy, since writes were always
+  // intended to go through service-role server actions. The RLS-checked
+  // category lookup above (filtered on organization_id AND bc_connection_id)
+  // is what authorises this write, so it's safe to use the service-role
+  // client here. Do not swap this back to createClient() — that would just
+  // hit 42501 (insufficient_privilege) again.
+  const serviceClient = createServiceClient();
+  const { data, error } = await serviceClient
     .from('item_templates')
     .upsert(
       {
