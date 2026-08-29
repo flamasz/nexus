@@ -194,7 +194,7 @@ create table if not exists public.business_central_sync_checkpoints (
 
 -- Generalize the sync event log beyond items. item_id is left untouched so
 -- existing item-sync writes keep working unchanged.
-alter table public.business_central_sync_events
+alter table public.business_central_item_sync_events
   add column if not exists entity_type text,
   add column if not exists entity_id uuid;
 
@@ -2109,7 +2109,7 @@ describe('buildArSyncAdapters', () => {
     const call = listResourcePage.mock.calls[0];
     expect(call[0]).toBe('salesInvoices');
     expect(call[1].filter).toContain("status ne 'Draft'");
-    expect(call[1].filter).toContain('lastModifiedDateTime gt 2026-03-01T00:00:00Z');
+    expect(call[1].filter).toContain('lastModifiedDateTime ge 2026-03-01T00:00:00Z');
     expect(call[1].orderBy).toBe('lastModifiedDateTime');
     expect(call[1].top).toBe(500);
   });
@@ -2199,7 +2199,14 @@ export const AR_SYNC_PAGE_SIZE = 500;
 function deltaFilter(cursor: string | null, extra?: string): string | undefined {
   const clauses: string[] = [];
   if (extra) clauses.push(extra);
-  if (cursor) clauses.push(`lastModifiedDateTime gt ${cursor}`);
+  // `ge`, not `gt`. Several records can share one lastModifiedDateTime, and a
+  // tie group straddling a page boundary would be silently DROPPED by `gt` —
+  // silent data loss in a financial mirror. `ge` re-fetches the boundary
+  // record instead, which is harmless because every write is an idempotent
+  // upsert on a stable conflict target. The sync runner's cursor-did-not-
+  // advance guard prevents the pathological case where more than `pageSize`
+  // records share a single timestamp.
+  if (cursor) clauses.push(`lastModifiedDateTime ge ${cursor}`);
   return clauses.length ? clauses.join(' and ') : undefined;
 }
 

@@ -134,6 +134,101 @@ describe('Business Central client', () => {
       'https://api.businesscentral.dynamics.com/v2.0/sandbox/api/v2.0/companies(company-id)/inventoryPostingGroups?%24top=100'
     );
   });
+
+  it('routes listResourcePage through the company path with $orderby and $top', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ value: [{ id: 'cust-1' }] }));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    const result = await client.listResourcePage('customers', {
+      orderBy: 'lastModifiedDateTime',
+      top: 500,
+    });
+
+    expect(result).toEqual([{ id: 'cust-1' }]);
+    const [url] = fetchImpl.mock.calls[1];
+    expect(String(url)).toContain('/companies(company-id)/customers');
+    expect(String(url)).toContain('$orderby=lastModifiedDateTime');
+    expect(String(url)).toContain('$top=500');
+    expect(String(url)).not.toContain('$filter');
+    expect(String(url)).not.toContain('$expand');
+  });
+
+  it('includes $expand on listResourcePage when supplied', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ value: [{ id: 'cust-1' }] }));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    await client.listResourcePage('customers', {
+      orderBy: 'lastModifiedDateTime',
+      top: 500,
+      expand: 'customerFinancialDetails',
+    });
+
+    const [url] = fetchImpl.mock.calls[1];
+    expect(String(url)).toContain('$expand=customerFinancialDetails');
+  });
+
+  it('encodes listResourcePage filter values with %20 rather than +, and the decoded filter round-trips', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ value: [] }));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    const filter = "lastModifiedDateTime ge 2026-03-01T00:00:00Z and status ne 'Draft'";
+    await client.listResourcePage('salesInvoices', {
+      filter,
+      orderBy: 'lastModifiedDateTime',
+      top: 500,
+    });
+
+    const [url] = fetchImpl.mock.calls[1];
+    const rawUrl = String(url);
+    expect(rawUrl).not.toContain('+');
+
+    const filterMatch = rawUrl.match(/\$filter=([^&]+)/);
+    expect(filterMatch).not.toBeNull();
+    expect(decodeURIComponent(filterMatch![1])).toBe(filter);
+  });
+
+  it('omits $orderby from listResourcePage when orderBy is not supplied', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ value: [{ id: 'line-1' }] }));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    const result = await client.listResourcePage('salesInvoiceLines', {
+      filter: 'documentId eq 123',
+      top: 500,
+    });
+
+    expect(result).toEqual([{ id: 'line-1' }]);
+    const [url] = fetchImpl.mock.calls[1];
+    expect(String(url)).toContain('/companies(company-id)/salesInvoiceLines');
+    expect(String(url)).toContain('$top=500');
+    expect(String(url)).not.toContain('$orderby');
+  });
+
+  it('returns an empty array when the response has no value field', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({}));
+    const client = createBcClient({ ...config, fetchImpl });
+
+    const result = await client.listResourcePage('customers', {
+      orderBy: 'lastModifiedDateTime',
+      top: 500,
+    });
+
+    expect(result).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

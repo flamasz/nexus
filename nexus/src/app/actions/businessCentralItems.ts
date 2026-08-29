@@ -7,7 +7,7 @@ import { getPackagingItemCombos } from '@/app/actions/orders';
 import { getProductLines } from '@/app/actions/productLines';
 
 import { requireOrganizationContext, requirePermission } from '@/lib/auth/currentUserAccess';
-import { ResolvedUserAccess } from '@/lib/auth/permissions';
+import { canEditBusinessCentralItems, ResolvedUserAccess } from '@/lib/auth/permissions';
 import { resolveActiveBcConnection } from '@/lib/businessCentral/activeConnection';
 import { BcApiError, BcClient, createBcClientForOrg } from '@/lib/businessCentral/client';
 import { createBcNoSeriesAssigner, type NumberAssigner } from '@/lib/businessCentral/numberAssigner';
@@ -123,10 +123,6 @@ export interface CreateBusinessCentralItemInput {
 }
 
 function canViewBusinessCentralItems(access: ResolvedUserAccess): boolean {
-  return access.isAdmin || access.canManageCatalog;
-}
-
-function canEditBusinessCentralItems(access: ResolvedUserAccess): boolean {
   return access.isAdmin || access.canManageCatalog;
 }
 

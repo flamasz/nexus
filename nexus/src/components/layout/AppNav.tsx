@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { canAccessArtworkWorkspace, resolveUserAccess } from '@/lib/auth/permissions';
+import {
+  canAccessArtworkWorkspace,
+  canViewCustomers,
+  canViewReceivables,
+  resolveUserAccess,
+} from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/database';
 import {
@@ -16,6 +21,8 @@ import {
   HelpCircle,
   Menu,
   Package,
+  Users,
+  Clock,
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -47,8 +54,16 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Orders', href: '/orders', icon: ShoppingCart },
       { label: 'Artwork', href: '/artwork', icon: Palette },
-      { label: 'Invoices', href: '/invoices', icon: FileText },
+      { label: 'Purchase invoices', href: '/invoices', icon: FileText },
       { label: 'Shipments', href: '/shipments', icon: Truck },
+    ],
+  },
+  {
+    title: 'Receivables',
+    items: [
+      { label: 'Customers', href: '/customers', icon: Users },
+      { label: 'Receivables', href: '/receivables', icon: Clock },
+      { label: 'Sales invoices', href: '/receivables/invoices', icon: FileText },
     ],
   },
   {
@@ -86,6 +101,12 @@ export function AppNav({
       }
       if (item.href === '/invoices') {
         return access.canViewInvoices;
+      }
+      if (item.href === '/customers') {
+        return canViewCustomers(access);
+      }
+      if (item.href === '/receivables' || item.href === '/receivables/invoices') {
+        return canViewReceivables(access);
       }
 
       return true;

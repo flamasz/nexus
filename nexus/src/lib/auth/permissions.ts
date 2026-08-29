@@ -23,6 +23,8 @@ export interface ResolvedUserAccess {
   canEditInvoices: boolean;
   canDeleteInvoices: boolean;
   canAssignInvoices: boolean;
+  canViewCustomers: boolean;
+  canViewReceivables: boolean;
   canViewDesignerFields: boolean;
   canViewArtworkFields: boolean;
   canEditDesignerFields: boolean;
@@ -74,6 +76,8 @@ const ACCESS_KEYS = [
   'canEditInvoices',
   'canDeleteInvoices',
   'canAssignInvoices',
+  'canViewCustomers',
+  'canViewReceivables',
   'canViewDesignerFields',
   'canViewArtworkFields',
   'canEditDesignerFields',
@@ -110,6 +114,8 @@ const OVERRIDE_TO_ACCESS_KEY: Record<keyof PermissionOverrides, keyof ResolvedUs
   editInvoices: 'canEditInvoices',
   deleteInvoices: 'canDeleteInvoices',
   assignInvoices: 'canAssignInvoices',
+  viewCustomers: 'canViewCustomers',
+  viewReceivables: 'canViewReceivables',
   viewDesignerFields: 'canViewDesignerFields',
   editDesignerFields: 'canEditDesignerFields',
   openArtworkModal: 'canOpenArtworkModal',
@@ -208,6 +214,8 @@ export function resolveUserAccess(user: Pick<User, 'role' | 'permissions'> | nul
     canEditInvoices: isAdmin || purchaser,
     canDeleteInvoices: isAdmin || purchaser,
     canAssignInvoices: isAdmin || purchaser,
+    canViewCustomers: isAdmin,
+    canViewReceivables: isAdmin,
     canViewDesignerFields: isAdmin || vendor || designer === 'view' || designer === 'edit',
     canViewArtworkFields: isAdmin || vendor || designer === 'view' || designer === 'edit',
     canEditDesignerFields: isAdmin || designer === 'edit',
@@ -255,4 +263,16 @@ export function summarizeEffectiveAccess(access: ResolvedUserAccess): string[] {
 
 export function canAccessArtworkWorkspace(access: ResolvedUserAccess): boolean {
   return access.canViewArtworkWorkspace || access.canOpenArtworkModal || access.canViewDesignerFields;
+}
+
+export function canViewCustomers(access: ResolvedUserAccess): boolean {
+  return access.canViewCustomers;
+}
+
+export function canViewReceivables(access: ResolvedUserAccess): boolean {
+  return access.canViewReceivables;
+}
+
+export function canEditBusinessCentralItems(access: ResolvedUserAccess): boolean {
+  return access.isAdmin || access.canManageCatalog;
 }

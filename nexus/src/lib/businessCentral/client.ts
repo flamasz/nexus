@@ -194,6 +194,10 @@ export interface BcClient {
   listInventoryPostingGroups(options?: {
     top?: number;
   }): Promise<BcListResponse<BcInventoryPostingGroup>>;
+  listResourcePage<T>(
+    resource: string,
+    options: { filter?: string; orderBy?: string; top: number; expand?: string },
+  ): Promise<T[]>;
 }
 
 interface CachedToken extends BcAccessToken {
@@ -350,6 +354,27 @@ export function createBcClient(config: BcClientConfig): BcClient {
     return { items, truncated: false };
   }
 
+  async function listResourcePage<T>(
+    resource: string,
+    options: { filter?: string; orderBy?: string; top: number; expand?: string },
+  ): Promise<T[]> {
+    const params: string[] = [];
+    if (options.filter) {
+      params.push(`$filter=${encodeURIComponent(options.filter)}`);
+    }
+    if (options.orderBy) {
+      params.push(`$orderby=${encodeURIComponent(options.orderBy)}`);
+    }
+    params.push(`$top=${encodeURIComponent(String(options.top))}`);
+    if (options.expand) {
+      params.push(`$expand=${encodeURIComponent(options.expand)}`);
+    }
+    const response = await request<BcListResponse<T>>(
+      `${companyPath(`/${resource}`)}?${params.join("&")}`,
+    );
+    return response.value ?? [];
+  }
+
   return {
     config: normalized,
     getAccessToken,
@@ -399,6 +424,7 @@ export function createBcClient(config: BcClientConfig): BcClient {
       request<BcListResponse<BcInventoryPostingGroup>>(
         withQuery(companyPath("/inventoryPostingGroups"), options),
       ),
+    listResourcePage,
   };
 }
 
