@@ -8,6 +8,7 @@ export interface BcEnvironmentFormValues {
   displayName: string;
   environment: string;
   apiBaseUrl: string;
+  timeZone: string;
 }
 
 interface BcEnvironmentFormProps {
@@ -23,6 +24,7 @@ export function BcEnvironmentForm({ connection, onSubmit, onCancel }: BcEnvironm
   const [displayName, setDisplayName] = useState(connection?.display_name ?? '');
   const [environment, setEnvironment] = useState(connection?.environment ?? '');
   const [apiBaseUrl, setApiBaseUrl] = useState(connection?.api_base_url ?? '');
+  const [timeZone, setTimeZone] = useState(connection?.time_zone ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -41,6 +43,7 @@ export function BcEnvironmentForm({ connection, onSubmit, onCancel }: BcEnvironm
         displayName: displayName.trim(),
         environment: environment.trim(),
         apiBaseUrl: apiBaseUrl.trim(),
+        timeZone: timeZone.trim(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -103,6 +106,23 @@ export function BcEnvironmentForm({ connection, onSubmit, onCancel }: BcEnvironm
                 className={INPUT_CLASS}
                 placeholder="https://api.businesscentral.dynamics.com"
               />
+            </div>
+
+            <div>
+              <label htmlFor="bcEnvTimeZone" className="block text-sm font-medium text-foreground mb-1">
+                Time Zone <span className="text-foreground-subtle">(optional)</span>
+              </label>
+              <input
+                id="bcEnvTimeZone"
+                type="text"
+                value={timeZone}
+                onChange={(e) => setTimeZone(e.target.value)}
+                className={INPUT_CLASS}
+                placeholder="Pacific/Honolulu"
+              />
+              <p className="mt-1 text-xs text-foreground-subtle">
+                IANA time zone for date stamping; leave blank for UTC.
+              </p>
             </div>
 
             <div className="flex gap-3 pt-4">

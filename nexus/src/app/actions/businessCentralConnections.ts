@@ -38,12 +38,14 @@ export interface CreateBcConnectionInput {
   displayName: string;
   environment: string;
   apiBaseUrl?: string | null;
+  timeZone?: string | null;
 }
 
 export interface UpdateBcConnectionInput {
   displayName?: string;
   environment?: string;
   apiBaseUrl?: string | null;
+  timeZone?: string | null;
 }
 
 function canManageBusinessCentralConnection(access: ResolvedUserAccess): boolean {
@@ -55,6 +57,23 @@ async function requireBcConnectionManage() {
     canManageBusinessCentralConnection,
     'You do not have permission to manage Business Central connections'
   );
+}
+
+/**
+ * Validates and normalises an IANA time zone input.
+ * Returns the trimmed zone string, or null when the value is blank/null.
+ * Throws when the value is non-empty but not a valid IANA zone name.
+ */
+function validateTimeZone(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: trimmed });
+  } catch {
+    throw new Error(`Invalid time zone: '${trimmed}'. Use an IANA time zone name, e.g. 'Pacific/Honolulu'.`);
+  }
+  return trimmed;
 }
 
 /**
@@ -172,6 +191,7 @@ export async function createBcConnection(
   if (!displayName || !environment) {
     throw new Error('Display name and environment are required');
   }
+  const timeZone = validateTimeZone(input.timeZone);
 
   // The BC company is shared per org and lives on the credentials row.
   // Every environment connection mirrors that company_id.
@@ -204,6 +224,7 @@ export async function createBcConnection(
       environment,
       company_id: companyId,
       api_base_url: input.apiBaseUrl?.trim() || DEFAULT_BC_API_BASE_URL,
+      time_zone: timeZone,
       is_default: isDefault,
       sync_enabled: false,
       created_at: now,
@@ -240,6 +261,9 @@ export async function updateBcConnection(
   }
   if (input.apiBaseUrl !== undefined) {
     updates.api_base_url = input.apiBaseUrl?.trim() || DEFAULT_BC_API_BASE_URL;
+  }
+  if (input.timeZone !== undefined) {
+    updates.time_zone = validateTimeZone(input.timeZone);
   }
 
   const { data, error } = await supabase

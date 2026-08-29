@@ -11,6 +11,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock('@/app/actions/itemTemplates', () => ({
+  listItemTemplates: vi.fn().mockResolvedValue([]),
+}));
+
 const adminUser: User = {
   id: 'user-1',
   email: 'admin@example.com',
@@ -35,6 +39,9 @@ function renderItems(overrides: Partial<React.ComponentProps<typeof ItemsClient>
       connection={mockConnectionStates.configuredOk}
       syncProgress={mockSyncProgress}
       references={mockReferenceData}
+      itemNames={[]}
+      categories={[]}
+      packagingItemCombos={[]}
       initialUser={adminUser}
       {...overrides}
     />

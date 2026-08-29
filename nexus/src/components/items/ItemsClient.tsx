@@ -45,6 +45,8 @@ import {
   verifyBusinessCentralConnection,
   pushBusinessCentralItem,
 } from "@/app/actions/businessCentralItems";
+import { listItemTemplates } from "@/app/actions/itemTemplates";
+import { templateToCreateInput } from "@/lib/businessCentral/itemTemplateMapper";
 import { resolveUserAccess, ResolvedUserAccess } from "@/lib/auth/permissions";
 import { cn } from "@/lib/utils";
 import {
@@ -56,7 +58,7 @@ import {
   SyncProgressState,
   SyncStatus,
 } from "@/types/businessCentralItems";
-import { Category, ItemName, PackagingItemCombo, ProductLine, User } from "@/types/database";
+import { Category, ItemName, ItemTemplate, PackagingItemCombo, ProductLine, User } from "@/types/database";
 import { Gs1ImportModal } from "@/components/gs1/Gs1ImportModal";
 import { Gs1FieldsPanel } from "@/components/gs1/Gs1FieldsPanel";
 import { BarcodeUploadsPanel } from "@/components/items/BarcodeUploadsPanel";
@@ -568,9 +570,11 @@ export function ItemsClient({
       )}
 
       <CreateItemDialog
+        key={createOpen ? "open" : "closed"}
         open={createOpen}
         onOpenChange={setCreateOpen}
         references={references}
+        categories={categories}
         isPending={isPending}
         pendingAction={pendingAction}
         onCreate={(draft) => {
@@ -579,13 +583,17 @@ export function ItemsClient({
             action: () =>
               createBusinessCentralItem({
                 displayName: draft.displayName,
-                number: draft.bcItemNumber,
+                number: draft.manualNumber ? draft.bcItemNumber : undefined,
                 type: draft.type,
                 itemCategoryCode: draft.itemCategoryCode,
                 baseUnitOfMeasureCode: draft.baseUnitOfMeasureCode,
+                taxGroupCode: draft.taxGroupCode || undefined,
                 unitPrice: draft.unitPrice,
                 unitCost: draft.unitCost,
                 gtin: draft.gtin,
+                categoryId: draft.categoryId,
+                generalProductPostingGroupCode: draft.generalProductPostingGroupCode || undefined,
+                inventoryPostingGroupCode: draft.inventoryPostingGroupCode || undefined,
               }),
             onSuccess: (entry) => dispatch({ type: "upsertCreatedItem", entry }),
             successMessage: (entry) =>
@@ -1763,6 +1771,7 @@ function CreateItemDialog({
   open,
   onOpenChange,
   references,
+  categories = [],
   isPending,
   pendingAction,
   onCreate,
@@ -1770,11 +1779,29 @@ function CreateItemDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   references: BusinessCentralReferenceData;
+  categories?: Category[];
   isPending: boolean;
   pendingAction: ActionKey | null;
   onCreate: (draft: CreateBusinessCentralItemDraft) => void;
 }) {
-  const [draft, setDraft] = useState<CreateBusinessCentralItemDraft>({
+  const numberInputId = useId();
+  const [templates, setTemplates] = useState<ItemTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+
+  // Load templates once when the dialog opens
+  useEffect(() => {
+    if (!open) return;
+    listItemTemplates()
+      .then(setTemplates)
+      .catch(() => { /* silently ignore — templates are optional */ });
+  }, [open]);
+
+  const getSeriesCode = (categoryId: string | null): string | null => {
+    if (!categoryId) return null;
+    return categories.find((c) => c.id === categoryId)?.bc_no_series_code ?? null;
+  };
+
+  const defaultDraft = (): CreateBusinessCentralItemDraft => ({
     bcItemNumber: "ZZ-TEST-",
     displayName: "",
     type: "Inventory",
@@ -1784,10 +1811,47 @@ function CreateItemDialog({
     unitPrice: null,
     unitCost: null,
     gtin: null,
+    categoryId: null,
+    manualNumber: true,
+    generalProductPostingGroupCode: null,
+    inventoryPostingGroupCode: null,
   });
 
+  const [draft, setDraft] = useState<CreateBusinessCentralItemDraft>(defaultDraft);
+
+  const seriesCode = getSeriesCode(draft.categoryId);
+
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+    const fromTemplate = templateToCreateInput(template, { displayName: draft.displayName });
+    const newCategoryId = template.category_id ?? null;
+    const hasSeriesCode = Boolean(getSeriesCode(newCategoryId));
+    setDraft((prev) => ({
+      ...prev,
+      ...fromTemplate,
+      itemCategoryCode: fromTemplate.itemCategoryCode ?? prev.itemCategoryCode,
+      taxGroupCode: fromTemplate.taxGroupCode ?? prev.taxGroupCode,
+      baseUnitOfMeasureCode: fromTemplate.baseUnitOfMeasureCode ?? prev.baseUnitOfMeasureCode,
+      type: fromTemplate.type ?? prev.type,
+      categoryId: newCategoryId,
+      manualNumber: !hasSeriesCode,
+    }));
+  };
+
+  const handleCategoryIdChange = (categoryId: string | null) => {
+    const hasSeriesCode = Boolean(getSeriesCode(categoryId));
+    setDraft((prev) => ({
+      ...prev,
+      categoryId,
+      manualNumber: !hasSeriesCode,
+    }));
+  };
+
   const errors = [
-    draft.bcItemNumber.trim() ? null : "BC item number is required.",
+    draft.manualNumber && !draft.bcItemNumber.trim() ? "BC item number is required." : null,
     draft.displayName.trim() ? null : "Display name is required.",
     draft.type.trim() ? null : "Type is required.",
     draft.baseUnitOfMeasureCode.trim() ? null : "Base UoM is required.",
@@ -1824,15 +1888,95 @@ function CreateItemDialog({
               test items.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Template picker */}
+          {templates.length > 0 && (
+            <div className="min-w-0 space-y-1.5">
+              <Label className="text-[11px] uppercase tracking-wide text-foreground-subtle">
+                Template
+              </Label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="border-input text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full min-w-0 rounded-md border px-3 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:ring-[3px]"
+              >
+                <option value="">— No template —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <TextField
-              label="BC item number"
-              value={draft.bcItemNumber}
-              mono
-              onChange={(value) =>
-                setDraft((prev) => ({ ...prev, bcItemNumber: value }))
-              }
-            />
+            {/* Packaging category (drives auto-number series) */}
+            <div className="min-w-0 space-y-1.5">
+              <Label className="text-[11px] uppercase tracking-wide text-foreground-subtle">
+                Packaging category
+              </Label>
+              <select
+                value={draft.categoryId ?? ""}
+                onChange={(e) => handleCategoryIdChange(e.target.value || null)}
+                className="border-input text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full min-w-0 rounded-md border px-3 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:ring-[3px]"
+              >
+                <option value="">— None —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.bc_no_series_code ? ` (${c.bc_no_series_code})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* BC item number — auto or manual */}
+            <div className="min-w-0 space-y-1.5">
+              <Label
+                htmlFor={numberInputId}
+                className="text-[11px] uppercase tracking-wide text-foreground-subtle"
+              >
+                BC item number
+              </Label>
+              {draft.manualNumber ? (
+                <Input
+                  id={numberInputId}
+                  value={draft.bcItemNumber}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, bcItemNumber: e.target.value }))
+                  }
+                  className="font-mono"
+                />
+              ) : (
+                <div className="flex h-9 items-center rounded-md border border-input bg-muted px-3 text-sm text-foreground-muted font-mono">
+                  Auto-assigned on save
+                </div>
+              )}
+              {seriesCode && !draft.manualNumber && (
+                <p className="text-xs text-foreground-muted">
+                  Will be assigned from {seriesCode} on save
+                </p>
+              )}
+              <div className="flex items-center gap-2 pt-0.5">
+                <input
+                  type="checkbox"
+                  id="manual-number-toggle"
+                  checked={draft.manualNumber}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, manualNumber: e.target.checked }))
+                  }
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label
+                  htmlFor="manual-number-toggle"
+                  className="text-xs text-foreground-muted cursor-pointer"
+                >
+                  Set manually
+                </Label>
+              </div>
+            </div>
+
             <TextField
               label="Display name"
               value={draft.displayName}

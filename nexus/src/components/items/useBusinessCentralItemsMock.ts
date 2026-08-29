@@ -75,6 +75,12 @@ export interface CreateBusinessCentralItemDraft {
   unitPrice: number | null;
   unitCost: number | null;
   gtin: string | null;
+  /** Packaging category id — drives auto-number series lookup */
+  categoryId: string | null;
+  /** When false, BC assigns the number from the series; when true, bcItemNumber is sent explicitly */
+  manualNumber: boolean;
+  generalProductPostingGroupCode?: string | null;
+  inventoryPostingGroupCode?: string | null;
 }
 
 export function createInitialBusinessCentralItemsMockState(
