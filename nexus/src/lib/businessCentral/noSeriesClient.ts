@@ -20,6 +20,22 @@ export class NoSeriesConflictError extends Error {
   }
 }
 
+/** Page 457 (No. Series Lines), published as an OData web service under this name. */
+export const NO_SERIES_LINES_SERVICE_NAME = 'NoSeriesLines';
+
+export class NoSeriesPageUnavailableError extends Error {
+  constructor(status: number) {
+    super(
+      `No. Series Lines are unavailable (HTTP ${status}). Publish page 457 ` +
+        `(No. Series Lines) as an OData web service named "${NO_SERIES_LINES_SERVICE_NAME}" ` +
+        `in this Business Central environment, and confirm the app registration has read ` +
+        `access to the No. Series Line table. If this persists after publishing, the OData ` +
+        `company key may differ from the company name used to build the URL.`
+    );
+    this.name = 'NoSeriesPageUnavailableError';
+  }
+}
+
 export interface NoSeriesClient {
   getOpenLine(seriesCode: string): Promise<BcNoSeriesLine | null>;
   advanceLine(line: BcNoSeriesLine, newLastNoUsed: string, lastDateUsed: string): Promise<BcNoSeriesLine>;
@@ -59,6 +75,9 @@ export function createNoSeriesClient(
   async function getOpenLine(seriesCode: string): Promise<BcNoSeriesLine | null> {
     const url = `${base}/NoSeriesLines?$filter=${encodeURIComponent(`Series_Code eq '${seriesCode}'`)}`;
     const res = await fetchImpl(url, { headers: { Authorization: await authHeader(), Accept: 'application/json' } });
+    if (res.status === 404 || res.status === 403 || res.status === 401) {
+      throw new NoSeriesPageUnavailableError(res.status);
+    }
     if (!res.ok) throw new Error(`No. Series read failed: ${res.status} ${res.statusText}`);
     const json = (await res.json()) as { value?: Record<string, unknown>[] };
     const rows = (json.value ?? []).map(mapLine);
@@ -74,6 +93,9 @@ export function createNoSeriesClient(
       body: JSON.stringify({ Last_No_Used: newLastNoUsed, Last_Date_Used: lastDateUsed }),
     });
     if (res.status === 409 || res.status === 412) throw new NoSeriesConflictError();
+    if (res.status === 404 || res.status === 403 || res.status === 401) {
+      throw new NoSeriesPageUnavailableError(res.status);
+    }
     if (!res.ok) throw new Error(`No. Series advance failed: ${res.status} ${res.statusText}`);
     return mapLine((await res.json()) as Record<string, unknown>);
   }
