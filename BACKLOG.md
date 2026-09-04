@@ -30,6 +30,22 @@ A running list of things to do. Reference items by number, e.g. "do #2" or "add 
    - No nav link to `/item-categories` — access is the items-page button by design. Revisit if that proves hard to find.
 7. **Bill.com integration — pieces C through F**, not yet designed. Decomposition and API research in `docs/superpowers/specs/2026-07-24-billcom-ar-sync-feasibility-spike.md`. Each piece warrants its own spec → plan → implementation cycle, and none should start until the AR sync branch lands.
    - C: customer write-back to BC · D: Bill.com connector (session auth, credential storage, toggle) · E: invoice push + payment status pull · F: payment posting into BC — **high risk, writes to the general ledger**.
+8. **The database cannot be rebuilt from migrations** — confirmed 2026-09-03, not yet fixed. A disaster-recovery hole, not a today-problem: every existing environment was built by applying migrations as they landed, so the live databases are fine. But nobody can stand up a new one from scratch.
+   - **Proven break:** `001_initial_schema.sql` creates **`packaging_items`**, and migrations 002–011 reference it. No migration ever renames it. Then `015_add_business_central_item_sync.sql:236` does `ALTER TABLE items` — so on an empty database the chain dies there with `relation "items" does not exist`. `027_scope_workspace_to_bc_environments.sql:11` and `036_add_bc_purchases_linking.sql:27` would fail the same way. The rename was done by hand against the live DB somewhere between 011 and 015 and never committed.
+   - **Proposed fix** (safe, and a no-op against every existing database because `items` already exists there). File it as `014a_rename_packaging_items_to_items.sql` so it sorts after 014 and before 015:
+     ```sql
+     DO $$
+     BEGIN
+       IF EXISTS (SELECT 1 FROM information_schema.tables
+                  WHERE table_schema='public' AND table_name='packaging_items')
+          AND NOT EXISTS (SELECT 1 FROM information_schema.tables
+                          WHERE table_schema='public' AND table_name='items') THEN
+         ALTER TABLE packaging_items RENAME TO items;
+       END IF;
+     END $$;
+     ```
+   - ⚠️ **That fixes only the one break that has been proven.** Whether 001→044 then runs clean on an empty database is unknown — this is untracked schema drift, and there is no reason to assume it happened exactly once. The only way to close the item honestly is to run the full chain against a scratch Supabase project and fix whatever else it hits.
+   - **Related, benign:** migration **034 is missing** from the sequence (001–044 is otherwise contiguous, no duplicates). It never existed in git — it was applied live and never committed — and `035_revert_po_items_catalog.sql` undoes it with `IF EXISTS` on every statement, so it is a no-op on a fresh database. Same root cause as above; no fix needed, worth a comment in 035 so the gap doesn't get re-investigated.
 
 ## Done
 
