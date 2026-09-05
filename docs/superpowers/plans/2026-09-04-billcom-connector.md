@@ -1521,6 +1521,8 @@ export function BillcomConnectionsCard() {
     try {
       await setBillcomConnectionEnabled(connection.id, !connection.isEnabled);
       await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update the connection');
     } finally {
       setBusyId(null);
     }
@@ -1531,16 +1533,34 @@ export function BillcomConnectionsCard() {
     try {
       const result = await testBillcomConnection(connectionId);
       setResults((prev) => ({ ...prev, [connectionId]: result }));
+    } catch (err) {
+      // A THROWN error means the request never reached Bill.com — authorization,
+      // or a connection that is not the caller's. Bill.com's own failures come
+      // back as { ok: false } and belong in the per-row banner, so keep the two
+      // cases visually distinct.
+      setError(err instanceof Error ? err.message : 'Failed to test the connection');
     } finally {
       setBusyId(null);
     }
   }
 
-  async function handleDelete(connectionId: string) {
-    setBusyId(connectionId);
+  async function handleDelete(connection: BillcomConnectionSummary) {
+    // deleteBillcomConnection calls delete_billcom_secrets, which permanently
+    // removes the developer key and password from Vault. There is no undo.
+    if (
+      !confirm(
+        `Delete "${connection.displayName}"? Its stored Bill.com credentials will be permanently deleted.`,
+      )
+    ) {
+      return;
+    }
+
+    setBusyId(connection.id);
     try {
-      await deleteBillcomConnection(connectionId);
+      await deleteBillcomConnection(connection.id);
       await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete the connection');
     } finally {
       setBusyId(null);
     }
@@ -1618,7 +1638,7 @@ export function BillcomConnectionsCard() {
                       {connection.isEnabled ? 'Disable' : 'Enable'}
                     </button>
                     <button
-                      onClick={() => handleDelete(connection.id)}
+                      onClick={() => handleDelete(connection)}
                       disabled={busyId === connection.id}
                       className="px-3 py-1.5 text-sm text-destructive rounded-md transition-colors disabled:opacity-50"
                     >
