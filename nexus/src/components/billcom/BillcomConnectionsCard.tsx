@@ -268,30 +268,54 @@ export function BillcomConnectionsCard() {
   }
 
   async function handleToggle(connection: BillcomConnectionSummary) {
+    setError('');
     setBusyId(connection.id);
     try {
       await setBillcomConnectionEnabled(connection.id, !connection.isEnabled);
       await reload();
+    } catch (err) {
+      console.error('Failed to update Bill.com connection:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update connection');
     } finally {
       setBusyId(null);
     }
   }
 
   async function handleTest(connectionId: string) {
+    setError('');
     setBusyId(connectionId);
     try {
       const result = await testBillcomConnection(connectionId);
       setResults((prev) => ({ ...prev, [connectionId]: result }));
+    } catch (err) {
+      // testBillcomConnection catches Bill.com login failures internally and
+      // returns { ok: false }. A thrown error here means something failed
+      // before that — authorization, a missing connection — so it goes
+      // through setError rather than the per-row result banner, keeping the
+      // two failure modes distinguishable.
+      console.error('Failed to test Bill.com connection:', err);
+      setError(err instanceof Error ? err.message : 'Failed to test connection');
     } finally {
       setBusyId(null);
     }
   }
 
-  async function handleDelete(connectionId: string) {
-    setBusyId(connectionId);
+  async function handleDelete(connection: BillcomConnectionSummary) {
+    if (
+      !confirm(
+        `Delete connection "${connection.displayName}"? The stored developer key and password will be permanently deleted.`
+      )
+    ) {
+      return;
+    }
+    setError('');
+    setBusyId(connection.id);
     try {
-      await deleteBillcomConnection(connectionId);
+      await deleteBillcomConnection(connection.id);
       await reload();
+    } catch (err) {
+      console.error('Failed to delete Bill.com connection:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete connection');
     } finally {
       setBusyId(null);
     }
@@ -382,7 +406,7 @@ export function BillcomConnectionsCard() {
                       {connection.isEnabled ? 'Disable' : 'Enable'}
                     </button>
                     <button
-                      onClick={() => handleDelete(connection.id)}
+                      onClick={() => handleDelete(connection)}
                       disabled={busyId === connection.id}
                       className="px-3 py-1.5 text-sm text-destructive rounded-md transition-colors disabled:opacity-50"
                     >
