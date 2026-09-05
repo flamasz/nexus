@@ -10,8 +10,38 @@ import type {
   BillcomConnection,
   BillcomConnectionInput,
   BillcomConnectionSummary,
+  BillcomEnvironment,
   BillcomTestResult,
 } from '@/types/billcom';
+
+/**
+ * Bill.com gateway hosts, keyed by environment.
+ *
+ * api_base_url — not `environment` — is what every request is actually built
+ * against, so an unvalidated value silently defeats the sandbox/production
+ * separation AND lets an admin point a connection at a host they control and
+ * harvest the Vault-stored credentials via Test connection, since secrets are
+ * write-only and never need to be re-entered. Validate server-side: a server
+ * action takes untrusted input at runtime whatever its TypeScript signature says.
+ */
+const BILLCOM_API_BASE_URLS: Record<BillcomEnvironment, string> = {
+  sandbox: 'https://gateway.stage.bill.com',
+  production: 'https://gateway.prod.bill.com',
+};
+
+function requireValidApiBaseUrl(environment: BillcomEnvironment, apiBaseUrl: string): string {
+  const expected = BILLCOM_API_BASE_URLS[environment];
+  if (!expected) {
+    throw new Error(`Unknown Bill.com environment: ${environment}`);
+  }
+  const normalized = apiBaseUrl.trim().replace(/\/+$/, '');
+  if (normalized !== expected) {
+    throw new Error(
+      `The API base URL for the ${environment} environment must be ${expected}.`,
+    );
+  }
+  return expected;
+}
 
 /**
  * Everything here configures a financial integration — admin only.
@@ -71,7 +101,9 @@ export async function listBillcomConnections(): Promise<BillcomConnectionSummary
 
   const { data, error } = await supabase
     .from('billcom_connections')
-    .select('*')
+    .select(
+      'id, display_name, environment, api_base_url, username, billcom_organization_id, is_enabled, is_default, dev_key_secret_id, password_secret_id',
+    )
     .eq('organization_id', orgId)
     .order('display_name', { ascending: true });
   if (error) throw error;
@@ -97,11 +129,13 @@ export async function saveBillcomConnection(input: BillcomConnectionInput): Prom
     await requireOwnedConnection(supabase, orgId, input.id);
   }
 
+  const apiBaseUrl = requireValidApiBaseUrl(input.environment, input.apiBaseUrl);
+
   const row = {
     organization_id: orgId,
     display_name: input.displayName,
     environment: input.environment,
-    api_base_url: input.apiBaseUrl,
+    api_base_url: apiBaseUrl,
     username: input.username,
     billcom_organization_id: input.billcomOrganizationId,
     is_default: input.isDefault,
@@ -163,6 +197,8 @@ export async function setBillcomConnectionEnabled(
 ): Promise<void> {
   const { orgId } = await requireAdmin();
   const supabase = createServiceClient();
+
+  await requireOwnedConnection(supabase, orgId, connectionId);
 
   // Disabling drops the cached session so a re-enable starts clean.
   const payload = enabled

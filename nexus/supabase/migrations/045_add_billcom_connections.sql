@@ -44,3 +44,10 @@ create unique index if not exists billcom_connections_one_default_per_org
   where is_default;
 
 alter table public.billcom_connections enable row level security;
+
+-- RLS with no policy already makes this table return zero rows to anon and
+-- authenticated. Revoke the default Supabase grants as well, so the guarantee
+-- does not rest on RLS alone: one future `create policy` or `disable row level
+-- security` would otherwise publish session_id — a live bearer credential — to
+-- every member of the organization through PostgREST.
+revoke all on public.billcom_connections from anon, authenticated;

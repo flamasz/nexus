@@ -4,6 +4,7 @@ import {
   BillcomApiError,
   BillcomAuthError,
   BillcomRateLimitError,
+  BillcomSessionExpiredError,
   type BillcomErrorDetails,
 } from './errors';
 
@@ -55,7 +56,10 @@ async function readErrorDetails(response: Response, url: string): Promise<Billco
 
 function errorFor(details: BillcomErrorDetails): BillcomApiError {
   if (details.code === 'BDC_1144') return new BillcomRateLimitError(details);
-  if (details.status === 401) return new BillcomAuthError(details);
+  // A 401 that reaches here survived the clear-and-retry in request() — a
+  // session that could not be re-established, not an auth failure. login()'s
+  // own failure path throws BillcomAuthError directly and never calls this.
+  if (details.status === 401) return new BillcomSessionExpiredError(details);
   return new BillcomApiError(details);
 }
 

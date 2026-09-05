@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBillcomClient, type SessionStore } from './client';
-import { BillcomAuthError, BillcomRateLimitError } from './errors';
+import { BillcomAuthError, BillcomRateLimitError, BillcomSessionExpiredError } from './errors';
 
 const config = {
   apiBaseUrl: 'https://gateway.stage.bill.com',
@@ -100,6 +100,8 @@ describe('Bill.com client', () => {
     expect(result).toEqual({ ok: true });
     expect(store.clear).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+    const [, retryInit] = fetchImpl.mock.calls[2];
+    expect((retryInit?.headers as Record<string, string>).sessionId).toBe('session-2');
   });
 
   it('propagates a second 401 instead of looping', async () => {
@@ -112,7 +114,9 @@ describe('Bill.com client', () => {
     const store = memoryStore({ sessionId: 'session-1', lastUsedAt: new Date() });
     const client = createBillcomClient({ ...config, sessionStore: store, fetchImpl });
 
-    await expect(client.request('/v3/customers')).rejects.toBeInstanceOf(BillcomAuthError);
+    await expect(client.request('/v3/customers')).rejects.toBeInstanceOf(
+      BillcomSessionExpiredError,
+    );
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 

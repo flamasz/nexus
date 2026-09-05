@@ -9,16 +9,18 @@ interface StubRow {
 
 /** Minimal stub of the Supabase query chain used by the store. */
 function stubSupabase(row: StubRow | null) {
-  const update = vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) }));
+  const updateEq = vi.fn(async () => ({ error: null }));
+  const update = vi.fn(() => ({ eq: updateEq }));
+  const selectEq = vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: row, error: null })) }));
   const supabase = {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
-        eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: row, error: null })) })),
+        eq: selectEq,
       })),
       update,
     })),
   };
-  return { supabase, update };
+  return { supabase, update, updateEq, selectEq };
 }
 
 describe('Bill.com DB session store', () => {
@@ -31,17 +33,21 @@ describe('Bill.com DB session store', () => {
 
   it('returns the stored session with lastUsedAt parsed as a Date', async () => {
     const when = '2026-09-04T10:00:00.000Z';
-    const { supabase } = stubSupabase({ session_id: 'session-1', session_last_used_at: when });
+    const { supabase, selectEq } = stubSupabase({
+      session_id: 'session-1',
+      session_last_used_at: when,
+    });
     const store = createDbSessionStore(supabase as never, 'conn-1');
 
     const stored = await store.get();
 
     expect(stored?.sessionId).toBe('session-1');
     expect(stored?.lastUsedAt.toISOString()).toBe(when);
+    expect(selectEq).toHaveBeenCalledWith('id', 'conn-1');
   });
 
   it('writes the session id and a fresh timestamp on set', async () => {
-    const { supabase, update } = stubSupabase(null);
+    const { supabase, update, updateEq } = stubSupabase(null);
     const store = createDbSessionStore(supabase as never, 'conn-1');
 
     await store.set('session-2');
@@ -49,6 +55,7 @@ describe('Bill.com DB session store', () => {
     const payload = (update.mock.calls as unknown[][])[0][0] as Record<string, unknown>;
     expect(payload.session_id).toBe('session-2');
     expect(typeof payload.session_last_used_at).toBe('string');
+    expect(updateEq).toHaveBeenCalledWith('id', 'conn-1');
   });
 
   it('does not write on touch inside the throttle window', async () => {
@@ -78,7 +85,7 @@ describe('Bill.com DB session store', () => {
   });
 
   it('nulls both session columns on clear', async () => {
-    const { supabase, update } = stubSupabase({
+    const { supabase, update, updateEq } = stubSupabase({
       session_id: 'session-1',
       session_last_used_at: new Date().toISOString(),
     });
@@ -90,5 +97,6 @@ describe('Bill.com DB session store', () => {
       session_id: null,
       session_last_used_at: null,
     });
+    expect(updateEq).toHaveBeenCalledWith('id', 'conn-1');
   });
 });

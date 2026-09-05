@@ -19,6 +19,16 @@ import type {
 const INPUT_CLASS =
   'w-full px-3 py-2 border border-border bg-surface text-foreground placeholder:text-foreground-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent';
 
+// Mirrors BILLCOM_API_BASE_URLS in app/actions/billcom.ts, which is the
+// source of truth and validates this server-side. The URL must follow the
+// environment select rather than being free text — otherwise an admin could
+// point a connection at an arbitrary host while the badge still reads
+// "sandbox" or "production".
+const BILLCOM_API_BASE_URLS: Record<BillcomEnvironment, string> = {
+  sandbox: 'https://gateway.stage.bill.com',
+  production: 'https://gateway.prod.bill.com',
+};
+
 interface BillcomConnectionFormProps {
   connection?: BillcomConnectionSummary;
   onSubmit: (values: BillcomConnectionInput) => Promise<void>;
@@ -30,9 +40,7 @@ function BillcomConnectionForm({ connection, onSubmit, onCancel }: BillcomConnec
   const [environment, setEnvironment] = useState<BillcomEnvironment>(
     connection?.environment ?? 'sandbox'
   );
-  const [apiBaseUrl, setApiBaseUrl] = useState(
-    connection?.apiBaseUrl ?? 'https://gateway.stage.bill.com'
-  );
+  const apiBaseUrl = BILLCOM_API_BASE_URLS[environment];
   const [username, setUsername] = useState(connection?.username ?? '');
   const [billcomOrganizationId, setBillcomOrganizationId] = useState(
     connection?.billcomOrganizationId ?? ''
@@ -47,13 +55,8 @@ function BillcomConnectionForm({ connection, onSubmit, onCancel }: BillcomConnec
     e.preventDefault();
     setError('');
 
-    if (
-      !displayName.trim() ||
-      !apiBaseUrl.trim() ||
-      !username.trim() ||
-      !billcomOrganizationId.trim()
-    ) {
-      setError('Display name, API base URL, username, and organization id are required');
+    if (!displayName.trim() || !username.trim() || !billcomOrganizationId.trim()) {
+      setError('Display name, username, and organization id are required');
       return;
     }
     if (!connection && (!devKey.trim() || !password.trim())) {
@@ -67,7 +70,7 @@ function BillcomConnectionForm({ connection, onSubmit, onCancel }: BillcomConnec
         id: connection?.id,
         displayName: displayName.trim(),
         environment,
-        apiBaseUrl: apiBaseUrl.trim(),
+        apiBaseUrl,
         username: username.trim(),
         billcomOrganizationId: billcomOrganizationId.trim(),
         devKey: devKey.trim() || undefined,
@@ -132,10 +135,12 @@ function BillcomConnectionForm({ connection, onSubmit, onCancel }: BillcomConnec
                 id="billcomApiBaseUrl"
                 type="text"
                 value={apiBaseUrl}
-                onChange={(e) => setApiBaseUrl(e.target.value)}
-                className={INPUT_CLASS}
-                placeholder="https://gateway.stage.bill.com"
+                readOnly
+                className={`${INPUT_CLASS} bg-surface-raised text-foreground-muted cursor-not-allowed`}
               />
+              <p className="text-xs text-foreground-muted mt-1">
+                Set by the selected environment.
+              </p>
             </div>
 
             <div>
@@ -255,14 +260,25 @@ export function BillcomConnectionsCard() {
     void reload();
   }, []);
 
+  function clearResult(connectionId: string) {
+    setResults((prev) => {
+      if (!(connectionId in prev)) return prev;
+      const next = { ...prev };
+      delete next[connectionId];
+      return next;
+    });
+  }
+
   async function handleCreate(values: BillcomConnectionInput) {
-    await saveBillcomConnection(values);
+    const connectionId = await saveBillcomConnection(values);
+    clearResult(connectionId);
     await reload();
     setShowCreateForm(false);
   }
 
   async function handleUpdate(values: BillcomConnectionInput) {
-    await saveBillcomConnection(values);
+    const connectionId = await saveBillcomConnection(values);
+    clearResult(connectionId);
     await reload();
     setEditingConnection(null);
   }
@@ -272,6 +288,7 @@ export function BillcomConnectionsCard() {
     setBusyId(connection.id);
     try {
       await setBillcomConnectionEnabled(connection.id, !connection.isEnabled);
+      clearResult(connection.id);
       await reload();
     } catch (err) {
       console.error('Failed to update Bill.com connection:', err);
@@ -312,6 +329,7 @@ export function BillcomConnectionsCard() {
     setBusyId(connection.id);
     try {
       await deleteBillcomConnection(connection.id);
+      clearResult(connection.id);
       await reload();
     } catch (err) {
       console.error('Failed to delete Bill.com connection:', err);
