@@ -22,18 +22,19 @@ Every task's requirements implicitly include these.
 - **This slice writes no business data to Bill.com.** The only network calls are `POST /v3/login` and, in tests, a stubbed authenticated request.
 - **All server actions are admin-gated** (`access.isAdmin`) and use `createServiceClient()` for writes.
 - Migration numbers `041`–`044` are taken. This plan adds `045` and `046`.
+- **A `'use server'` module may only export async functions.** No `interface`, `type`, or `export type` declarations in `actions/billcom.ts` — Turbopack's dev transform sweeps them into the server-actions manifest and fails the dev build, while `tsc`, `next build` and the test suite all still pass. All shared types live in `@/types/billcom`. See commit `93094f8`.
 
 ## File Structure
 
 | File | Responsibility |
 |---|---|
 | `nexus/supabase/migrations/045_add_billcom_connections.sql` | `billcom_connections` table, indexes, RLS enabled with no policy |
-| `nexus/supabase/migrations/046_billcom_credential_functions.sql` | Four Vault accessor functions |
-| `nexus/src/types/billcom.ts` | `BillcomConnection` row type and input types |
+| `nexus/supabase/migrations/046_billcom_credential_functions.sql` | Five Vault accessor functions (get/set pairs plus delete) |
+| `nexus/src/types/billcom.ts` | All Bill.com types: row, form input, client-safe summary, test result |
 | `nexus/src/lib/billcom/errors.ts` | Typed error classes |
 | `nexus/src/lib/billcom/client.ts` | Pure HTTP client; login, authenticated request, 401 retry |
 | `nexus/src/lib/billcom/sessionStore.ts` | DB-backed `SessionStore`, including the 5-minute write throttle |
-| `nexus/src/lib/billcom/connection.ts` | `createBillcomClientForOrg` — loads row, decrypts secrets, wires store |
+| `nexus/src/lib/billcom/connection.ts` | `createBillcomClientForConnection` — loads row, decrypts secrets, wires store |
 | `nexus/src/app/actions/billcom.ts` | Server actions: save, toggle, delete, test |
 | `nexus/src/components/billcom/BillcomConnectionsCard.tsx` | Admin UI card |
 
@@ -46,7 +47,7 @@ Every task's requirements implicitly include these.
 - Create: `nexus/src/types/billcom.ts`
 
 **Interfaces:**
-- Produces: table `billcom_connections`; TypeScript `BillcomConnection`, `BillcomEnvironment`, `BillcomConnectionInput`.
+- Produces: table `billcom_connections`; TypeScript `BillcomConnection`, `BillcomEnvironment`, `BillcomConnectionInput`, `BillcomConnectionSummary`, `BillcomTestResult`.
 
 - [ ] **Step 1: Write the migration**
 
@@ -153,6 +154,31 @@ export interface BillcomConnectionInput {
   devKey?: string;
   password?: string;
   isDefault: boolean;
+}
+
+/**
+ * Safe projection returned to the client: no Vault pointers, no session id.
+ *
+ * Lives here rather than in the 'use server' actions module. A 'use server'
+ * module may only export async functions — Turbopack's dev transform sweeps
+ * even `export type` into the server-actions manifest and fails the dev build,
+ * while tsc/build/test all still pass. See commit 93094f8.
+ */
+export interface BillcomConnectionSummary {
+  id: string;
+  displayName: string;
+  environment: BillcomEnvironment;
+  apiBaseUrl: string;
+  username: string;
+  billcomOrganizationId: string;
+  isEnabled: boolean;
+  isDefault: boolean;
+  hasCredentials: boolean;
+}
+
+export interface BillcomTestResult {
+  ok: boolean;
+  message: string;
 }
 ```
 
@@ -1216,7 +1242,12 @@ import { getCurrentUser } from '@/app/actions/users';
 import { createBillcomClientForConnection } from '@/lib/billcom/connection';
 import { resolveUserAccess } from '@/lib/auth/permissions';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { BillcomConnection, BillcomConnectionInput } from '@/types/billcom';
+import type {
+  BillcomConnection,
+  BillcomConnectionInput,
+  BillcomConnectionSummary,
+  BillcomTestResult,
+} from '@/types/billcom';
 
 /**
  * Everything here configures a financial integration — admin only.
@@ -1240,18 +1271,9 @@ async function requireAdmin(): Promise<{ orgId: string }> {
   return { orgId: user.organization_id };
 }
 
-/** Safe projection: no Vault pointers, no session id. */
-export interface BillcomConnectionSummary {
-  id: string;
-  displayName: string;
-  environment: BillcomConnection['environment'];
-  apiBaseUrl: string;
-  username: string;
-  billcomOrganizationId: string;
-  isEnabled: boolean;
-  isDefault: boolean;
-  hasCredentials: boolean;
-}
+// NOTE: no interface or `export type` declarations in this file. A 'use server'
+// module may only export async functions. BillcomConnectionSummary and
+// BillcomTestResult live in @/types/billcom for that reason — see 93094f8.
 
 export async function listBillcomConnections(): Promise<BillcomConnectionSummary[]> {
   const { orgId } = await requireAdmin();
@@ -1389,11 +1411,6 @@ export async function deleteBillcomConnection(connectionId: string): Promise<voi
   revalidatePath('/admin');
 }
 
-export interface BillcomTestResult {
-  ok: boolean;
-  message: string;
-}
-
 export async function testBillcomConnection(connectionId: string): Promise<BillcomTestResult> {
   await requireAdmin();
 
@@ -1447,8 +1464,9 @@ import {
   listBillcomConnections,
   setBillcomConnectionEnabled,
   testBillcomConnection,
-  type BillcomConnectionSummary,
 } from '@/app/actions/billcom';
+// Types come from @/types/billcom, never from the 'use server' module.
+import type { BillcomConnectionSummary } from '@/types/billcom';
 
 export function BillcomConnectionsCard() {
   const [connections, setConnections] = useState<BillcomConnectionSummary[]>([]);
