@@ -22,6 +22,7 @@ Every task's requirements implicitly include these.
 - **This slice writes no business data to Bill.com.** The only network calls are `POST /v3/login` and, in tests, a stubbed authenticated request.
 - **All server actions are admin-gated** (`access.isAdmin`) and use `createServiceClient()` for writes.
 - Migration numbers `041`–`044` are taken. This plan adds `045` and `046`.
+- **Every connection-id-keyed operation must be org-scoped by the caller.** The Vault RPCs and the client factory are keyed by connection id alone, and Supabase does NOT error when an org-scoped `.update()`/`.delete()` matches zero rows. So a foreign connection id silently slips past a scoped row write and still reaches the RPC. `loadBillcomConnection` and `createBillcomClientForConnection` take an `organizationId`, and `saveBillcomConnection`/`deleteBillcomConnection`/`testBillcomConnection` call an ownership guard that fails closed before any Vault RPC or Bill.com call.
 - **A `'use server'` module may only export async functions.** No `interface`, `type`, or `export type` declarations in `actions/billcom.ts` — Turbopack's dev transform sweeps them into the server-actions manifest and fails the dev build, while `tsc`, `next build` and the test suite all still pass. All shared types live in `@/types/billcom`. See commit `93094f8`.
 
 ## File Structure
@@ -34,7 +35,7 @@ Every task's requirements implicitly include these.
 | `nexus/src/lib/billcom/errors.ts` | Typed error classes |
 | `nexus/src/lib/billcom/client.ts` | Pure HTTP client; login, authenticated request, 401 retry |
 | `nexus/src/lib/billcom/sessionStore.ts` | DB-backed `SessionStore`, including the 5-minute write throttle |
-| `nexus/src/lib/billcom/connection.ts` | `createBillcomClientForConnection` — loads row, decrypts secrets, wires store |
+| `nexus/src/lib/billcom/connection.ts` | `createBillcomClientForConnection` — loads row **scoped by organization**, decrypts secrets, wires store |
 | `nexus/src/app/actions/billcom.ts` | Server actions: save, toggle, delete, test |
 | `nexus/src/components/billcom/BillcomConnectionsCard.tsx` | Admin UI card |
 
@@ -1061,7 +1062,7 @@ git commit -m "feat(billcom): add DB-backed session store with throttled touch"
 
 **Interfaces:**
 - Consumes: `createBillcomClient` (Task 3), `createDbSessionStore` (Task 4), `BillcomConnectionDisabledError` (Task 3), RPCs from Task 2.
-- Produces: `createBillcomClientForConnection(connectionId, options?): Promise<BillcomClient>`; `loadBillcomConnection(supabase, connectionId): Promise<BillcomConnection>`.
+- Produces: `createBillcomClientForConnection(connectionId, organizationId, options?): Promise<BillcomClient>`; `loadBillcomConnection(supabase, connectionId, organizationId): Promise<BillcomConnection>`. **Both take the organization id and scope the query by it** — see the Global Constraint on org scoping.
 
 - [ ] **Step 1: Write the failing tests**
 
