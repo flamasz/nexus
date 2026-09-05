@@ -20,7 +20,9 @@ function stubSupabase(connectionRow: Record<string, unknown> | null, secrets: Re
   return {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
-        eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: connectionRow, error: null })) })),
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: connectionRow, error: null })) })),
+        })),
       })),
       update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
     })),
@@ -33,7 +35,7 @@ describe('Bill.com connection factory', () => {
     const supabase = stubSupabase({ ...row, is_enabled: false }, {});
 
     await expect(
-      createBillcomClientForConnection('conn-1', { supabase: supabase as never }),
+      createBillcomClientForConnection('conn-1', 'org-1', { supabase: supabase as never }),
     ).rejects.toBeInstanceOf(BillcomConnectionDisabledError);
 
     expect(supabase.rpc).not.toHaveBeenCalled();
@@ -43,15 +45,28 @@ describe('Bill.com connection factory', () => {
     const supabase = stubSupabase(null, {});
 
     await expect(
-      createBillcomClientForConnection('missing', { supabase: supabase as never }),
+      createBillcomClientForConnection('missing', 'org-1', { supabase: supabase as never }),
     ).rejects.toThrow(/was not found/);
+  });
+
+  it('throws a clear error when the connection belongs to another organization', async () => {
+    // The org-scoped query returns no row for a foreign connection id, so this
+    // looks identical to "does not exist" from the caller's perspective — and
+    // must never reach a Vault RPC.
+    const supabase = stubSupabase(null, {});
+
+    await expect(
+      createBillcomClientForConnection('conn-1', 'org-2', { supabase: supabase as never }),
+    ).rejects.toThrow(/was not found/);
+
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 
   it('throws a clear error when credentials have not been stored', async () => {
     const supabase = stubSupabase(row, { get_billcom_dev_key: null, get_billcom_password: null });
 
     await expect(
-      createBillcomClientForConnection('conn-1', { supabase: supabase as never }),
+      createBillcomClientForConnection('conn-1', 'org-1', { supabase: supabase as never }),
     ).rejects.toThrow(/credentials/i);
   });
 
@@ -61,7 +76,7 @@ describe('Bill.com connection factory', () => {
       get_billcom_password: 'password',
     });
 
-    const client = await createBillcomClientForConnection('conn-1', {
+    const client = await createBillcomClientForConnection('conn-1', 'org-1', {
       supabase: supabase as never,
       fetchImpl: vi.fn<typeof fetch>(),
     });

@@ -16,17 +16,21 @@ export interface CreateBillcomClientOptions {
 export async function loadBillcomConnection(
   supabase: SupabaseClient,
   connectionId: string,
+  organizationId: string,
 ): Promise<BillcomConnection> {
   const { data, error } = await supabase
     .from('billcom_connections')
     .select('*')
     .eq('id', connectionId)
+    .eq('organization_id', organizationId)
     .maybeSingle();
 
   if (error) {
     throw new Error(`Failed to load the Bill.com connection: ${error.message}`);
   }
   if (!data) {
+    // Same message for "does not exist" and "belongs to another org" — a
+    // distinct message would let a caller probe which ids exist elsewhere.
     throw new Error(`Bill.com connection ${connectionId} was not found.`);
   }
   return data as BillcomConnection;
@@ -34,10 +38,11 @@ export async function loadBillcomConnection(
 
 export async function createBillcomClientForConnection(
   connectionId: string,
+  organizationId: string,
   options: CreateBillcomClientOptions = {},
 ): Promise<BillcomClient> {
   const supabase = options.supabase ?? createServiceClient();
-  const connection = await loadBillcomConnection(supabase, connectionId);
+  const connection = await loadBillcomConnection(supabase, connectionId, organizationId);
 
   // Check the toggle before decrypting anything — a disabled connection must
   // make no network call and needs no credentials present.

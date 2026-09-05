@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/app/actions/users';
 import { createBillcomClientForConnection } from '@/lib/billcom/connection';
 import { resolveUserAccess } from '@/lib/auth/permissions';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   BillcomConnection,
   BillcomConnectionInput,
@@ -38,6 +39,32 @@ async function requireAdmin(): Promise<{ orgId: string }> {
 // module may only export async functions. BillcomConnectionSummary and
 // BillcomTestResult live in @/types/billcom for that reason — see 93094f8.
 
+/**
+ * Fail closed on a connection id that does not belong to the caller's org.
+ *
+ * The Vault RPCs and the Bill.com client factory are keyed by connection id,
+ * and Supabase does not error when an org-scoped update or delete matches zero
+ * rows — so without this check a foreign id silently reaches them and operates
+ * on another organization's credentials.
+ */
+async function requireOwnedConnection(
+  supabase: SupabaseClient,
+  orgId: string,
+  connectionId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('billcom_connections')
+    .select('id')
+    .eq('id', connectionId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    throw new Error(`Bill.com connection ${connectionId} was not found.`);
+  }
+}
+
 export async function listBillcomConnections(): Promise<BillcomConnectionSummary[]> {
   const { orgId } = await requireAdmin();
   const supabase = createServiceClient();
@@ -65,6 +92,10 @@ export async function listBillcomConnections(): Promise<BillcomConnectionSummary
 export async function saveBillcomConnection(input: BillcomConnectionInput): Promise<string> {
   const { orgId } = await requireAdmin();
   const supabase = createServiceClient();
+
+  if (input.id) {
+    await requireOwnedConnection(supabase, orgId, input.id);
+  }
 
   const row = {
     organization_id: orgId,
@@ -157,6 +188,8 @@ export async function deleteBillcomConnection(connectionId: string): Promise<voi
   const { orgId } = await requireAdmin();
   const supabase = createServiceClient();
 
+  await requireOwnedConnection(supabase, orgId, connectionId);
+
   // Drop the Vault secrets first, while the pointers on the row are still
   // readable. Deleting the row first would orphan them permanently.
   const { error: secretsError } = await supabase.rpc('delete_billcom_secrets', {
@@ -175,10 +208,13 @@ export async function deleteBillcomConnection(connectionId: string): Promise<voi
 }
 
 export async function testBillcomConnection(connectionId: string): Promise<BillcomTestResult> {
-  await requireAdmin();
+  const { orgId } = await requireAdmin();
+  const supabase = createServiceClient();
+
+  await requireOwnedConnection(supabase, orgId, connectionId);
 
   try {
-    const client = await createBillcomClientForConnection(connectionId);
+    const client = await createBillcomClientForConnection(connectionId, orgId);
     await client.login();
     return { ok: true, message: 'Connected to Bill.com and started a session.' };
   } catch (error) {
