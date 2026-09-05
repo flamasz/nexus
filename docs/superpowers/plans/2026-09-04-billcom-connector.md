@@ -369,6 +369,31 @@ begin
   end if;
 end;
 $$;
+
+-- Lock the wrappers down: only the service-role client may call them.
+--
+-- This is NOT optional. Postgres grants EXECUTE to PUBLIC on a newly created
+-- function, and Supabase exposes public-schema functions as PostgREST RPC
+-- endpoints callable by anon/authenticated. These functions are SECURITY
+-- DEFINER and take a connection id as a parameter, so without this block any
+-- caller could read, overwrite or erase the Bill.com credentials of ANY
+-- connection in the system — defeating the point of storing them in Vault.
+--
+-- `create or replace function` does not preserve prior grants, so any future
+-- migration that redefines these must restate this block. Migrations 024 and
+-- 025 set the same precedent for set_bc_client_secret/get_bc_client_secret.
+
+revoke all on function public.set_billcom_dev_key(uuid, text) from public, anon;
+revoke all on function public.get_billcom_dev_key(uuid) from public, anon;
+revoke all on function public.set_billcom_password(uuid, text) from public, anon;
+revoke all on function public.get_billcom_password(uuid) from public, anon;
+revoke all on function public.delete_billcom_secrets(uuid) from public, anon;
+
+grant execute on function public.set_billcom_dev_key(uuid, text) to service_role;
+grant execute on function public.get_billcom_dev_key(uuid) to service_role;
+grant execute on function public.set_billcom_password(uuid, text) to service_role;
+grant execute on function public.get_billcom_password(uuid) to service_role;
+grant execute on function public.delete_billcom_secrets(uuid) to service_role;
 ```
 
 - [ ] **Step 2: Apply and round-trip the functions**
