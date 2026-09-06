@@ -25,8 +25,8 @@ const INPUT_CLASS =
 // point a connection at an arbitrary host while the badge still reads
 // "sandbox" or "production".
 const BILLCOM_API_BASE_URLS: Record<BillcomEnvironment, string> = {
-  sandbox: 'https://gateway.stage.bill.com',
-  production: 'https://gateway.prod.bill.com',
+  sandbox: 'https://gateway.stage.bill.com/connect',
+  production: 'https://gateway.prod.bill.com/connect',
 };
 
 interface BillcomConnectionFormProps {

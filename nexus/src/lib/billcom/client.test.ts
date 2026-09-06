@@ -4,7 +4,7 @@ import { createBillcomClient, type SessionStore } from './client';
 import { BillcomAuthError, BillcomRateLimitError, BillcomSessionExpiredError } from './errors';
 
 const config = {
-  apiBaseUrl: 'https://gateway.stage.bill.com',
+  apiBaseUrl: 'https://gateway.stage.bill.com/connect',
   devKey: 'dev-key',
   username: 'user@example.com',
   password: 'secret',
@@ -46,7 +46,7 @@ describe('Bill.com client', () => {
 
     expect(sessionId).toBe('session-1');
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(String(url)).toBe('https://gateway.stage.bill.com/v3/login');
+    expect(String(url)).toBe('https://gateway.stage.bill.com/connect/v3/login');
     expect(JSON.parse(String(init?.body))).toEqual({
       username: 'user@example.com',
       password: 'secret',
@@ -65,7 +65,7 @@ describe('Bill.com client', () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(String(url)).toBe('https://gateway.stage.bill.com/v3/customers');
+    expect(String(url)).toBe('https://gateway.stage.bill.com/connect/v3/customers');
     expect((init?.headers as Record<string, string>).sessionId).toBe('session-1');
     expect((init?.headers as Record<string, string>).devKey).toBe('dev-key');
   });

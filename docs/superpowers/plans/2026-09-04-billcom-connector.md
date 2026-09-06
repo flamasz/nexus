@@ -405,7 +405,7 @@ Apply `046`, then verify a real round trip:
 insert into public.billcom_connections
   (organization_id, display_name, environment, api_base_url, username, billcom_organization_id)
 select id, 'Vault round-trip test', 'sandbox',
-       'https://gateway.stage.bill.com', 'test@example.com', '008TESTORG'
+       'https://gateway.stage.bill.com/connect', 'test@example.com', '008TESTORG'
 from public.organizations limit 1
 returning id;
 ```
@@ -527,7 +527,7 @@ import { createBillcomClient, type SessionStore } from './client';
 import { BillcomAuthError, BillcomRateLimitError } from './errors';
 
 const config = {
-  apiBaseUrl: 'https://gateway.stage.bill.com',
+  apiBaseUrl: 'https://gateway.stage.bill.com/connect',
   devKey: 'dev-key',
   username: 'user@example.com',
   password: 'secret',
@@ -569,7 +569,7 @@ describe('Bill.com client', () => {
 
     expect(sessionId).toBe('session-1');
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(String(url)).toBe('https://gateway.stage.bill.com/v3/login');
+    expect(String(url)).toBe('https://gateway.stage.bill.com/connect/v3/login');
     expect(JSON.parse(String(init?.body))).toEqual({
       username: 'user@example.com',
       password: 'secret',
@@ -588,7 +588,7 @@ describe('Bill.com client', () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(String(url)).toBe('https://gateway.stage.bill.com/v3/customers');
+    expect(String(url)).toBe('https://gateway.stage.bill.com/connect/v3/customers');
     expect((init?.headers as Record<string, string>).sessionId).toBe('session-1');
     expect((init?.headers as Record<string, string>).devKey).toBe('dev-key');
   });
@@ -1079,7 +1079,7 @@ const row = {
   organization_id: 'org-1',
   display_name: 'Sandbox',
   environment: 'sandbox',
-  api_base_url: 'https://gateway.stage.bill.com',
+  api_base_url: 'https://gateway.stage.bill.com/connect',
   username: 'user@example.com',
   billcom_organization_id: '008ORG',
   is_enabled: true,
@@ -1676,7 +1676,7 @@ Add a `BillcomConnectionForm` sub-component in the same file, shown when an "Add
 |---|---|---|
 | Display name | text | required |
 | Environment | select | `sandbox` / `production`, required |
-| API base URL | text | required; sandbox is `https://gateway.stage.bill.com` |
+| API base URL | text | required; sandbox is `https://gateway.stage.bill.com/connect` |
 | Username | text | required |
 | Bill.com organization id | text | required; the `008…` value |
 | Developer key | **`type="password"`** | required on create; blank on edit keeps stored value |
@@ -1734,7 +1734,7 @@ Expected: all pass.
 
 Start the app (`cd nexus && npm run dev`), go to `/admin` → Bill.com → add a connection:
 
-- Environment `sandbox`, API base URL `https://gateway.stage.bill.com`
+- Environment `sandbox`, API base URL `https://gateway.stage.bill.com/connect`
 - Username, Bill.com organization id (the `008…` value), developer key, password
 
 Leave it **disabled**.

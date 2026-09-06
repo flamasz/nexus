@@ -8,7 +8,7 @@ const row = {
   organization_id: 'org-1',
   display_name: 'Sandbox',
   environment: 'sandbox',
-  api_base_url: 'https://gateway.stage.bill.com',
+  api_base_url: 'https://gateway.stage.bill.com/connect',
   username: 'user@example.com',
   billcom_organization_id: '008ORG',
   is_enabled: true,

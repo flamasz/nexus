@@ -25,8 +25,8 @@ import type {
  * action takes untrusted input at runtime whatever its TypeScript signature says.
  */
 const BILLCOM_API_BASE_URLS: Record<BillcomEnvironment, string> = {
-  sandbox: 'https://gateway.stage.bill.com',
-  production: 'https://gateway.prod.bill.com',
+  sandbox: 'https://gateway.stage.bill.com/connect',
+  production: 'https://gateway.prod.bill.com/connect',
 };
 
 function requireValidApiBaseUrl(environment: BillcomEnvironment, apiBaseUrl: string): string {
